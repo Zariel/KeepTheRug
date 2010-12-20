@@ -9,14 +9,16 @@
 local newT, delT, copyT
 do
 	local cache = {}
-	newT = function()
-		local t = next(cache)
-		if(t) then
-			cache[t] = nil
-			return t
-		else
-			return {}
+	newT = function(...)
+		local t = next(cache) or {}
+
+		for i = 1, select("#", ...) do
+			t[#t + 1] = select(i, ...)
 		end
+
+		cache[t] = nil
+
+		return t
 	end
 
 	delT = function(t, nocache)
@@ -61,6 +63,7 @@ do
 	end
 end
 
+-- TODO: Add item info caching
 local newItem = function(bag, slot)
 	local t = newT()
 	local _, count, _, rarity = GetContainerItemInfo(bag, slot)
@@ -68,10 +71,21 @@ local newItem = function(bag, slot)
 
 	t.bag = bag
 	t.slot = slot
-	t.count = count
 	t.link = link
-	t.rarity = rarity
 	t.empty = not link
+
+	if(link) then
+		local name, _, _, iLevel, minLevel, itemType, subType, maxCount = GetItemInfo(link)
+		t.name = name
+		t.iLevel = iLevel
+		t.minLevel = minLevel
+		t.itemType = itemType
+		t.subType = subType
+		t.maxCount = maxCount
+		t.count = count
+		t.rarity = rarity
+		t.full = count == maxCount
+	end
 
 	return t
 end
@@ -87,11 +101,13 @@ end
 
 local getBags = function()
 	local bags = newT()
+	local revBags = newT()
 
 	local i = 1
 	for bag = 0, 4 do
 		for slot = 1, GetContainerNumSlots(bag) do
 			local item = newItem(bag, slot)
+			item.currentPos = i
 			bags[i] = item
 
 			i = i + 1
@@ -122,15 +138,17 @@ local defragMap = function(bags)
 	while(i > 1) do
 		for j = i, 1, -1 do
 			slot = dest[j]
+			i = j
 			if(not slot.empty) then
 				break
 			end
-			i = j
 		end
 
 		local empty = firstEmpty(dest)
 		if(empty and i > empty) then
 			swap(dest, i, empty)
+			-- Update the new slot position so we can find it again
+			dest[empty].currentPos = i
 		else
 			break
 		end
@@ -141,21 +159,159 @@ local defragMap = function(bags)
 	return dest
 end
 
-_G.walrus = function()
+local stackMap = function(bags)
+	local dest = copyT(bags, newT())
+end
+
+-- For a given map of what the bag should look like, createa a path that will move the items so that it
+-- matches the given map.
+
+local parseMap = function(dest)
+	local current, rev = getBags()
+
 	--[[
-	local bags = getBags()
-
-	for k, v in pairs(bags[1]) do
-		print(bags[1][k], bags[2][k])
-	end
-
-	swap(bags, 1, 2)
-
-	for k, v in pairs(bags[1]) do
-		print(bags[1][k], bags[2][k])
+	for i = 1, #dest do
+		if(dest[i].dirty) then
+			print(i, dest[i].link, dest[i].bag, dest[i].slot)
+		end
 	end
 	]]
 
-	return defragMap(getBags())
+	local i = #dest
+	local slot
+
+	local path = newT()
+
+
+	while(i > 0) do
+		if(not (slot and slot.dirty)) then
+			for j = i, 1, -1 do
+				slot = dest[j]
+				i = j
+
+				if(slot.dirty and not slot.empty) then
+					break
+				end
+			end
+		end
+
+		-- Logic is broken or might not be
+		-- print(i, slot.currentPos)
+		local source = current[i]
+		if(i ~= slot.currentPos) then
+			-- From To
+			path[#path + 1] = { slot, source }
+
+			-- The item displaced should be proccessed next, be carefull this
+			-- doesnt becoem an infinite loop.
+			if(source.dirty) then
+				slot = source
+			else
+				slot = nil
+			end
+		end
+
+		i = i - 1
+	end
+
+	for i = 1, #path do
+		print("Move", path[i][1].bag, path[i][1].slot, path[i][2].bag, path[i][2].slot)
+	end
+
+	return path
+end
+
+local driving, driverArg
+
+local timer = 0
+local OnUpdate = function(self, elapsed)
+	timer = timer + elapsed
+
+	-- Move check throttle
+	if(timer > 1) then
+		if(moving and coroutine.status == "suspended") then
+			coroutine.resume(driving, driverArgs)
+		end
+	end
+
+end
+
+local f = CreateFrame("frame")
+f:Hide()
+f:SetScript("OnUpdate", OnUpdate)
+
+local moveItems = function(fromBag, fromSlot, toBag, toSlot)
+	local _, locked1, locked2
+	while(true) do
+		_, _, locked1 = GetContainerItemInfo(fromBag, fromSlot)
+		_, _, locked2 = GetContainerItemInfo(toBag, toSlot)
+
+		if(locked1 or locked2) then
+			coroutine.yield(false)
+		else
+			break
+		end
+	end
+
+	PickupContainerItem(fromBag, fromSlot)
+
+	if(CursorHasItem()) then
+		PickupContainerItem(toBag, toSlot)
+	end
+
+	return true
+end
+
+-- Time for some CRAZY couroutines!
+local driver = function(path)
+	local from, to
+	local err, ret
+
+	local moving
+
+	for i = 1, #path do
+		from = path[i][1]
+		to = path[i][2]
+
+		moving = coroutine.create(moveItems)
+		err, ret = coroutine.resume(moving, from.bag, from.slot, to.bag, to.slot)
+		print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
+		if(not ret) then
+			-- moving failed, locked
+			f:Show()
+			coroutine.yield(false)
+
+			-- debug this
+			if(not (moving or coroutine.status(moving) == "suspended")) then
+				return true
+			end
+
+			while(true) do
+				err, ret = coroutine.resume(moving, from.bag, from.slot, to.bag, to.slot)
+
+				if(not ret) then
+					coroutine.yield(false)
+				else
+					break
+				end
+			end
+		end
+	end
+
+	return true
+end
+
+local run = function(bags)
+	if(driving) then
+		return
+	end
+
+	driving = coroutine.create(driver)
+	driverArgs = bags
+end
+
+_G.walrus = function()
+	local map = parseMap(defragMap(getBags()))
+	driver(map)
 end
 
