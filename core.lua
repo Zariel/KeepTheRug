@@ -80,11 +80,11 @@ local itemTypeSort = function(a, b)
 end
 
 local itemMeta = {
-	__lt = itemTypeSort,
+	__lt = raritySort,
 	__eq = function(a, b)
 		return a.link == b.link
 	end,
-	__tostring = function(self) return self.link end,
+	__tostring = function(self) return tostring(self.link) end,
 }
 
 -- TODO: Add item info caching
@@ -233,11 +233,13 @@ local sortMap = function(bags)
 		end
 	end
 
-	qsort(dest, 1, #dest)
+	if(#dest > 1) then
+		qsort(dest, 1, #dest)
 
-	for i = 1, #bags do
-		if(bags[i].empty) then
-			table.insert(dest, i, bags[i])
+		for i = 1, #bags do
+			if(bags[i].empty) then
+				table.insert(dest, i, bags[i])
+			end
 		end
 	end
 
@@ -299,7 +301,7 @@ local OnUpdate = function(self, elapsed)
 	timer = timer + elapsed
 
 	-- Move check throttle
-	if(timer > 0.2) then
+	if(timer > 0.5) then
 		if(driving and coroutine.status(driving) == "suspended") then
 			coroutine.resume(driving, driverArgs)
 		end
@@ -346,9 +348,9 @@ local driver = function(path)
 		to = path[i][2]
 
 		moving = coroutine.create(moveItems)
-		--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
 		while(true) do
 			err, ret = coroutine.resume(moving, from.bag, from.slot, to.bag, to.slot)
+			--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
 
 			if(not ret) then
 				f:Show()
