@@ -242,12 +242,14 @@ local swap = function(bags, from, to)
 	bags[to].dirty = true
 end
 
-local getBags = function()
+local getBags = function(bank)
 	local bags = {}
-	local revBags = {}
 
 	local i = 1
-	for bag = 0, 4 do
+	local min = bank and NUM_BAG_SLOTS + 1 or 0
+	local max = bank and NUM_BAG_SLOTS + NUM_BANKBAGSLOTS or NUM_BAG_SLOTS
+
+	for bag = min, max do
 		for slot = 1, GetContainerNumSlots(bag) do
 			local item = newItem(bag, slot)
 			item.id = i
@@ -256,6 +258,8 @@ local getBags = function()
 			i = i + 1
 		end
 	end
+
+	bags.bank = bank
 
 	return bags
 end
@@ -343,6 +347,8 @@ end
 local sortMap = function(bags)
 	local dest = {}
 
+	dest.bank = bags.bank
+
 	local slot, prev
 
 	for i = 1, #bags do
@@ -368,7 +374,7 @@ end
 -- matches the given map.
 
 local parseMap = function(dest)
-	local current, rev = getBags()
+	local current = getBags(dest.bank)
 
 	local i = #dest
 	local slot
@@ -516,7 +522,7 @@ end
 _G.walrus = function()
 	--local map = parseMap(defragMap(getBags()))
 	--local map = parseMap(defragMap(sortMap(getBags())))
-	local defrag = defragMap(getBags())
+	local defrag = defragMap(getBags(true))
 	local sort = sortMap(defrag)
 	local path = parseMap(sort)
 
