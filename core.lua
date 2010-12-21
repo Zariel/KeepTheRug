@@ -49,6 +49,8 @@ do
 	end
 end
 
+-- Sorting
+
 local nameSort = function(a, b)
 	return a.name > b.name
 end
@@ -61,8 +63,24 @@ local raritySort = function(a, b)
 	end
 end
 
+local itemSubTypeSort = function(a, b)
+	if(a.subType == b.subType) then
+		return raritySort(a, b)
+	else
+		return a.subType > b.subType
+	end
+end
+
+local itemTypeSort = function(a, b)
+	if(a.itemType == b.itemType) then
+		return raritySort(a, b)
+	else
+		return a.itemType > b.itemType
+	end
+end
+
 local itemMeta = {
-	__lt = raritySort,
+	__lt = itemTypeSort,
 	__eq = function(a, b)
 		return a.link == b.link
 	end,
@@ -281,7 +299,7 @@ local OnUpdate = function(self, elapsed)
 	timer = timer + elapsed
 
 	-- Move check throttle
-	if(timer > 0.5) then
+	if(timer > 0.2) then
 		if(driving and coroutine.status(driving) == "suspended") then
 			coroutine.resume(driving, driverArgs)
 		end
