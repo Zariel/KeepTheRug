@@ -8,20 +8,7 @@
 -- Some table funcs
 local newT, delT, copyT
 do
-	local cache = {}
-	newT = function(...)
-		local t = next(cache) or {}
-
-		for i = 1, select("#", ...) do
-			t[#t + 1] = select(i, ...)
-		end
-
-		cache[t] = nil
-
-		return t
-	end
-
-	delT = function(t, nocache)
+	delT = function(t)
 		for k, v in pairs(t) do
 			if(type(v) == "table") then
 				delT(v)
@@ -30,19 +17,18 @@ do
 			t[k] = nil
 		end
 
-		if(not nocache) then
-			cache[t] = true
-		end
-
 		return
 	end
 
 	copyT = function(s, d)
-		delT(d, true)
+		delT(d)
+
+		local meta = getmetatable(s)
+		setmetatable(d, meta)
 
 		for k, v in pairs(s) do
 			if(type(v) == "table") then
-				local t = newT()
+				local t = {}
 				copyT(v, t)
 				d[k] = t
 			else
@@ -63,20 +49,31 @@ do
 	end
 end
 
-local itemMeta = {
-	__lt = function(a, b)
-		return a.rarity < b.rarity
-	end,
-	__le = function(a, b)
-		return a.rarity <= b.rarity
+local nameSort = function(a, b)
+	return a.name > b.name
+end
+
+local raritySort = function(a, b)
+	if(a.rarity == b.rarity) then
+		return nameSort(a, b)
+	else
+		return a.rarity > b.rarity
 	end
+end
+
+local itemMeta = {
+	__lt = raritySort,
+	__eq = function(a, b)
+		return a.link == b.link
+	end,
+	__tostring = function(self) return self.link end,
 }
 
 -- TODO: Add item info caching
 local newItem = function(bag, slot)
-	local t = setmetatable(newT(), itemMeta)
-	local _, count, _, rarity = GetContainerItemInfo(bag, slot)
-	local link = GetContainerItemLink(bag, slot)
+	local t = setmetatable({}, itemMeta)
+	local _, count, _, rarity, _, _, link = GetContainerItemInfo(bag, slot)
+	--local link = GetContainerItemLink(bag, slot)
 
 	t.bag = bag
 	t.slot = slot
@@ -84,7 +81,7 @@ local newItem = function(bag, slot)
 	t.empty = not link
 
 	if(link) then
-		local name, _, _, iLevel, minLevel, itemType, subType, maxCount = GetItemInfo(link)
+		local name, _, rarity, iLevel, minLevel, itemType, subType, maxCount = GetItemInfo(link)
 		t.name = name
 		t.iLevel = iLevel
 		t.minLevel = minLevel
@@ -100,7 +97,7 @@ local newItem = function(bag, slot)
 end
 
 local swap = function(bags, from, to)
-	local tmp = copyT(bags[from], newT())
+	local tmp = copyT(bags[from], {})
 	copyT(bags[to], bags[from])
 	copyT(tmp, bags[to])
 
@@ -109,8 +106,8 @@ local swap = function(bags, from, to)
 end
 
 local getBags = function()
-	local bags = newT()
-	local revBags = newT()
+	local bags = {}
+	local revBags = {}
 
 	local i = 1
 	for bag = 0, 4 do
@@ -139,7 +136,7 @@ local defragMap = function(bags)
 		return bags
 	end
 
-	local dest = copyT(bags, newT())
+	local dest = copyT(bags, {})
 
 	local slot
 	local i = #bags
@@ -169,7 +166,7 @@ local defragMap = function(bags)
 end
 
 local stackMap = function(bags)
-	local dest = copyT(bags, newT())
+	local dest = copyT(bags, {})
 end
 
 local qsort
@@ -208,7 +205,7 @@ qsort = function(t, min, max)
 end
 
 local sortMap = function(bags)
-	local dest = newT()
+	local dest = {}
 
 	local slot, prev
 
@@ -235,18 +232,10 @@ end
 local parseMap = function(dest)
 	local current, rev = getBags()
 
-	--[[
-	for i = 1, #dest do
-		if(dest[i].dirty) then
-			print(i, dest[i].link, dest[i].bag, dest[i].slot)
-		end
-	end
-	]]
-
 	local i = #dest
 	local slot
 
-	local path = newT()
+	local path = {}
 
 	while(i > 0) do
 		if(not (slot and slot.dirty)) then
@@ -260,12 +249,22 @@ local parseMap = function(dest)
 			end
 		end
 
-		-- Logic is broken or might not be
-		-- print(i, slot.currentPos)
-		local source = current[i]
-		if(i ~= slot.currentPos) then
+		-- Find where item I is in the current layout
+		local source, n
+		for j = 1, #current do
+			if(current[j] == slot) then
+				source = current[j]
+				n = j
+				break
+			end
+		end
+
+		if(i ~= n) then
 			-- From To
 			path[#path + 1] = { slot, source }
+			swap(current, i, n)
+			--swap(current, i, slot.currentPos)
+			--source.currentPos = i
 		end
 
 		i = i - 1
@@ -282,7 +281,7 @@ local OnUpdate = function(self, elapsed)
 	timer = timer + elapsed
 
 	-- Move check throttle
-	if(timer > 1) then
+	if(timer > 0.5) then
 		if(driving and coroutine.status(driving) == "suspended") then
 			coroutine.resume(driving, driverArgs)
 		end
@@ -329,34 +328,19 @@ local driver = function(path)
 		to = path[i][2]
 
 		moving = coroutine.create(moveItems)
-		err, ret = coroutine.resume(moving, from.bag, from.slot, to.bag, to.slot)
-		print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
-		if(not ret) then
-			-- moving failed, locked
-			--[[
-			f:Show()
-			coroutine.yield(false)
-			f:Hide()
-			]]
+		--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
+		while(true) do
+			err, ret = coroutine.resume(moving, from.bag, from.slot, to.bag, to.slot)
 
-			-- debug this
-			if(not (moving or coroutine.status(moving) == "suspended")) then
-				return true
+			if(not ret) then
+				f:Show()
+				coroutine.yield(false)
+			else
+				break
 			end
-
-			while(true) do
-				err, ret = coroutine.resume(moving, from.bag, from.slot, to.bag, to.slot)
-
-				if(not ret) then
-					f:Show()
-					coroutine.yield(false)
-				else
-					break
-				end
-			end
-
-			f:Hide()
 		end
+
+		f:Hide()
 	end
 
 	return true
@@ -371,15 +355,15 @@ local run = function(bags)
 	driverArgs = bags
 
 	coroutine.resume(driving, driverArgs)
-
 end
 
 _G.walrus = function()
 	--local map = parseMap(defragMap(getBags()))
 	--local map = parseMap(defragMap(sortMap(getBags())))
 	local defrag = defragMap(getBags())
-	for i = 1, #defrag do
-		print(defrag[i]
-	run(map)
+	local sort = sortMap(defrag)
+	local path = parseMap(sort)
+
+	run(path)
 end
 
