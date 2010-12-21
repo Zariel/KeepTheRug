@@ -197,7 +197,7 @@ local itemMeta = {
 	__lt = raritySort,
 	__eq = function(a, b)
 		for k, v in pairs(a) do
-			if(b[k] ~= v) then
+			if(k ~= "bag" and k ~= "slot" and b[k] ~= v) then
 				return false
 			end
 		end
@@ -316,6 +316,33 @@ end
 
 local stackMap = function(bags)
 	local dest = copyT(bags, {})
+
+	local i = #dest
+	local slot
+	while(i > 0) do
+		for j = i, 1, -1 do
+			slot = dest[j]
+			i = j
+			if(not (slot.empty or slot.count < slot.maxCount)) then
+				break
+			end
+		end
+
+		-- Find another stack to dump onto.
+		local n
+		for j = 1, i do
+			if(slot.name == dest[j].name and dest[j].count < dest[j].maxCount) then
+				n = j
+				break
+			end
+		end
+
+		if(n) then
+			local ammount = dest[j].maxCount - dest[j].count
+			swap(dest, i, n)
+			dest[i].ammount = ammount
+		end
+	end
 end
 
 local qsort
@@ -403,18 +430,18 @@ local parseMap = function(dest)
 			end
 		end
 
-		-- Find where item I is in the current layout
+		-- Find where slot is in the current layout
 		local source, n
 		-- TODO: Optimize this
 		for j = 1, #current do
-			if(current[j] == slot) then
+			if(current[j] == slot and j ~= i) then
 				source = current[j]
 				n = j
 				break
 			end
 		end
 
-		if(i ~= n) then
+		if(n and i ~= n) then
 			-- From To
 			path[#path + 1] = { slot, source }
 			swap(current, i, n)
@@ -532,11 +559,9 @@ end
 _G.walrus = function()
 	--local map = parseMap(defragMap(getBags()))
 	--local map = parseMap(defragMap(sortMap(getBags())))
-	local defrag = defragMap(getBags(true))
+	local defrag = defragMap(getBags())
 	local sort = sortMap(defrag)
 	local path = parseMap(sort)
-
-	print(#path)
 
 	run(path)
 end
