@@ -246,8 +246,18 @@ local getBags = function(bank)
 	local bags = {}
 
 	local i = 1
-	local min = bank and NUM_BAG_SLOTS + 1 or 0
-	local max = bank and NUM_BAG_SLOTS + NUM_BANKBAGSLOTS or NUM_BAG_SLOTS
+	local min = (bank and NUM_BAG_SLOTS + 1) or 0
+	local max = (bank and NUM_BAG_SLOTS + NUM_BANKBAGSLOTS + 1) or NUM_BAG_SLOTS
+
+	if(bank) then
+		for slot = 1, GetContainerNumSlots(-1) do
+			local item = newItem(-1, slot)
+			item.id = i
+			bags[i] = item
+
+			i = i + 1
+		end
+	end
 
 	for bag = min, max do
 		for slot = 1, GetContainerNumSlots(bag) do
