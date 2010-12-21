@@ -161,9 +161,17 @@ local nameSort = function(a, b)
 	end
 end
 
+local iLevelSort = function(a, b)
+	if(a.iLevel == b.ilevel) then
+		return nameSort(a, b)
+	else
+		return a.iLevel > b.iLevel
+	end
+end
+
 local itemSubTypeSort = function(a, b)
 	if(a.subType == b.subType) then
-		return nameSort(a, b)
+		return iLevelSort(a, b)
 	else
 		return itemSubWeight[a.itemType][a.subType] > itemSubWeight[b.itemType][b.subType]
 	end
@@ -409,6 +417,8 @@ local OnUpdate = function(self, elapsed)
 
 	-- Move check throttle
 	if(timer > 0.1) then
+		timer = 0
+
 		if(driving and coroutine.status(driving) == "suspended") then
 			local err, ret = coroutine.resume(driving, driverArgs)
 			if(ret) then
@@ -416,8 +426,9 @@ local OnUpdate = function(self, elapsed)
 				driverArg = nil
 				self:Hide()
 			end
+		else
+			self:Hide()
 		end
-		timer = 0
 	end
 
 end
@@ -450,6 +461,8 @@ end
 
 -- Time for some CRAZY couroutines!
 local driver = function(path)
+	print("Starting ..")
+
 	local from, to
 	local err, ret
 
@@ -481,6 +494,8 @@ local driver = function(path)
 
 		f:Hide()
 	end
+
+	print("Finished")
 
 	return true
 end
