@@ -83,23 +83,23 @@ local itemSubWeight = setmetatable({
 		["Plate"] = 9,
 	},
 	["Weapon"] = {
-		["Bows"] = 8,
-		["Crossbows"] = 7,
-		["Daggers"] = 2,
-		["Guns"] = 6,
-		["Fishing Poles"] = 1,
-		["Fist Weapons"] = 5.5,
 		["Miscellaneous"] = 0,
+		["Fishing Poles"] = 1,
+		["Daggers"] = 2,
 		["One-Handed Axes"] = 3,
 		["One-Handed Maces"] = 4,
 		["One-Handed Swords"] = 5,
-		["Polearms"] = 12,
-		["Staves"] = 11,
+		["Fist Weapons"] = 5.5,
+		["Guns"] = 6,
+		["Crossbows"] = 7,
+		["Bows"] = 8,
 		["Thrown"] = 9,
+		["Wands"] = 10,
+		["Staves"] = 11,
+		["Polearms"] = 12,
 		["Two-Handed Axes"] = 13,
 		["Two-Handed Maces"] = 14,
 		["Two-Handed Swords"] = 15,
-		["Wands"] = 10,
 	},
 	["Trade Goods"] = {
 		["Armor Enchantment"] = 1,
@@ -145,7 +145,6 @@ for k, v in pairs(itemSubWeight) do
 	setmetatable(itemSubWeight[k], nullMeta)
 end
 
-
 local stackSort = function(a, b)
 	if(a.count == b.count) then
 		return false
@@ -161,7 +160,6 @@ local nameSort = function(a, b)
 		return a.name > b.name
 	end
 end
-
 
 local itemSubTypeSort = function(a, b)
 	if(a.subType == b.subType) then
@@ -410,7 +408,7 @@ local OnUpdate = function(self, elapsed)
 	timer = timer + elapsed
 
 	-- Move check throttle
-	if(timer > 0.2) then
+	if(timer > 0.1) then
 		if(driving and coroutine.status(driving) == "suspended") then
 			local err, ret = coroutine.resume(driving, driverArgs)
 			if(ret) then
