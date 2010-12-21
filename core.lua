@@ -63,9 +63,18 @@ do
 	end
 end
 
+local itemMeta = {
+	__lt = function(a, b)
+		return a.rarity < b.rarity
+	end,
+	__le = function(a, b)
+		return a.rarity <= b.rarity
+	end
+}
+
 -- TODO: Add item info caching
 local newItem = function(bag, slot)
-	local t = newT()
+	local t = setmetatable(newT(), itemMeta)
 	local _, count, _, rarity = GetContainerItemInfo(bag, slot)
 	local link = GetContainerItemLink(bag, slot)
 
@@ -163,6 +172,63 @@ local stackMap = function(bags)
 	local dest = copyT(bags, newT())
 end
 
+local qsort
+qsort = function(t, min, max)
+	local pivot
+	local left, right = min, max
+
+	if(max > min) then
+		pivot = math.floor((min + max) / 2)
+		while(left <= pivot and right >= pivot) do
+			while(t[left] < t[pivot] and left <= pivot) do
+				left = left + 1
+			end
+
+			while(t[right] > t[pivot] and right >= pivot) do
+				right = right - 1
+			end
+
+			swap(t, left, right)
+
+			left = left + 1
+			right = right - 1
+
+			if(left - 1 == pivot) then
+				right = right + 1
+				pivot = right
+			elseif(right + 1 == pivot) then
+				left = left - 1
+				pivot = left
+			end
+		end
+
+		qsort(t, min, pivot - 1)
+		qsort(t, pivot + 1, max)
+	end
+end
+
+local sortMap = function(bags)
+	local dest = newT()
+
+	local slot, prev
+
+	for i = 1, #bags do
+		if(not bags[i].empty) then
+			dest[#dest + 1] = bags[i]
+		end
+	end
+
+	qsort(dest, 1, #dest)
+
+	for i = 1, #bags do
+		if(bags[i].empty) then
+			table.insert(dest, i, bags[i])
+		end
+	end
+
+	return dest
+end
+
 -- For a given map of what the bag should look like, createa a path that will move the items so that it
 -- matches the given map.
 
@@ -182,7 +248,6 @@ local parseMap = function(dest)
 
 	local path = newT()
 
-
 	while(i > 0) do
 		if(not (slot and slot.dirty)) then
 			for j = i, 1, -1 do
@@ -201,21 +266,10 @@ local parseMap = function(dest)
 		if(i ~= slot.currentPos) then
 			-- From To
 			path[#path + 1] = { slot, source }
-
-			-- The item displaced should be proccessed next, be carefull this
-			-- doesnt becoem an infinite loop.
-			if(source.dirty) then
-				slot = source
-			else
-				slot = nil
-			end
 		end
 
 		i = i - 1
-	end
-
-	for i = 1, #path do
-		print("Move", path[i][1].bag, path[i][1].slot, path[i][2].bag, path[i][2].slot)
+		slot = dest[i]
 	end
 
 	return path
@@ -229,9 +283,10 @@ local OnUpdate = function(self, elapsed)
 
 	-- Move check throttle
 	if(timer > 1) then
-		if(moving and coroutine.status == "suspended") then
+		if(driving and coroutine.status(driving) == "suspended") then
 			coroutine.resume(driving, driverArgs)
 		end
+		timer = 0
 	end
 
 end
@@ -278,8 +333,11 @@ local driver = function(path)
 		print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
 		if(not ret) then
 			-- moving failed, locked
+			--[[
 			f:Show()
 			coroutine.yield(false)
+			f:Hide()
+			]]
 
 			-- debug this
 			if(not (moving or coroutine.status(moving) == "suspended")) then
@@ -290,11 +348,14 @@ local driver = function(path)
 				err, ret = coroutine.resume(moving, from.bag, from.slot, to.bag, to.slot)
 
 				if(not ret) then
+					f:Show()
 					coroutine.yield(false)
 				else
 					break
 				end
 			end
+
+			f:Hide()
 		end
 	end
 
@@ -302,16 +363,23 @@ local driver = function(path)
 end
 
 local run = function(bags)
-	if(driving) then
+	if(driving and coroutine.status(driving) ~= "dead") then
 		return
 	end
 
 	driving = coroutine.create(driver)
 	driverArgs = bags
+
+	coroutine.resume(driving, driverArgs)
+
 end
 
 _G.walrus = function()
-	local map = parseMap(defragMap(getBags()))
-	driver(map)
+	--local map = parseMap(defragMap(getBags()))
+	--local map = parseMap(defragMap(sortMap(getBags())))
+	local defrag = defragMap(getBags())
+	for i = 1, #defrag do
+		print(defrag[i]
+	run(map)
 end
 
