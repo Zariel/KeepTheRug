@@ -49,40 +49,153 @@ do
 	end
 end
 
+local nullMeta = {
+	__index = function()
+		return 0
+	end
+}
+
 -- Sorting
+local itemTypeWeight = setmetatable({
+	["Miscellaneous"] = 0,
+	["Consumable"] = 2,
+	["Container"] = 3,
+	["Reagent"] = 4,
+	["Recipe"] = 5,
+	["Gem"] = 6,
+	["Quest"] = 7,
+	["Trade Goods"] = 8,
+	["Armor"] =  9,
+	["Weapon"] = 10,
+}, nullMeta)
 
-local nameSort = function(a, b)
-	return a.name > b.name
+local itemSubWeight = setmetatable({
+	["Armor"] = {
+		["Miscellaneous"] = 0,
+		["Sigils"] = 1,
+		["Totems"] = 2,
+		["Idols"] = 3,
+		["Librams"] = 4,
+		["Shields"] = 5,
+		["Cloth"] = 6,
+		["Leather"] = 7,
+		["Mail"] = 8,
+		["Plate"] = 9,
+	},
+	["Weapon"] = {
+		["Bows"] = 8,
+		["Crossbows"] = 7,
+		["Daggers"] = 2,
+		["Guns"] = 6,
+		["Fishing Poles"] = 1,
+		["Fist Weapons"] = 5.5,
+		["Miscellaneous"] = 0,
+		["One-Handed Axes"] = 3,
+		["One-Handed Maces"] = 4,
+		["One-Handed Swords"] = 5,
+		["Polearms"] = 12,
+		["Staves"] = 11,
+		["Thrown"] = 9,
+		["Two-Handed Axes"] = 13,
+		["Two-Handed Maces"] = 14,
+		["Two-Handed Swords"] = 15,
+		["Wands"] = 10,
+	},
+	["Trade Goods"] = {
+		["Armor Enchantment"] = 1,
+		["Cloth"] = 14,
+		["Devices"] = 2,
+		["Elemental"] = 13,
+		["Enchanting"] = 11,
+		["Explosives"] = 3,
+		["Herb"] = 12,
+		["Jewelcrafting"] = 10,
+		["Leather"] = 9,
+		["Materials"] = 8,
+		["Meat"] = 4,
+		["Metal & Stone"] = 5,
+		["Other"] = 0,
+		["Parts"] = 6,
+		["Trade Goods"] = 0,
+		["Weapon Enchantment"] = 7,
+	},
+	["Consumable"] = {
+		["Food & Drink"] = 3,
+		["Potion"] = 4,
+		["Elixir"] = 5,
+		["Flask"] = 6,
+		["Bandage"] = 7,
+		["Item Enhancement"] = 2,
+		["Scroll"] = 1,
+		["Other"] = 0,
+		["Consumable"] = 0.5,
+	}
+}, { __index = function()
+	return setmetatable({}, nullMeta)
 end
+})
 
-local raritySort = function(a, b)
-	if(a.rarity == b.rarity) then
-		return nameSort(a, b)
-	else
-		return a.rarity > b.rarity
+for k,v in pairs(itemTypeWeight) do
+	if(not itemSubWeight[k]) then
+		itemSubWeight[k] = setmetatable({}, nullMeta)
 	end
 end
 
+for k, v in pairs(itemSubWeight) do
+	setmetatable(itemSubWeight[k], nullMeta)
+end
+
+
+local stackSort = function(a, b)
+	if(a.count == b.count) then
+		return false
+	else
+		return a.count > b.count
+	end
+end
+
+local nameSort = function(a, b)
+	if(a.name == b.name) then
+		return stackSort(a, b)
+	else
+		return a.name > b.name
+	end
+end
+
+
 local itemSubTypeSort = function(a, b)
 	if(a.subType == b.subType) then
-		return raritySort(a, b)
+		return nameSort(a, b)
 	else
-		return a.subType > b.subType
+		return itemSubWeight[a.itemType][a.subType] > itemSubWeight[b.itemType][b.subType]
 	end
 end
 
 local itemTypeSort = function(a, b)
 	if(a.itemType == b.itemType) then
-		return raritySort(a, b)
+		return itemSubTypeSort(a, b)
 	else
-		return a.itemType > b.itemType
+		return itemTypeWeight[a.itemType] > itemTypeWeight[b.itemType]
+	end
+end
+
+local raritySort = function(a, b)
+	if(a.rarity == b.rarity) then
+		return itemTypeSort(a, b)
+	else
+		return a.rarity > b.rarity
 	end
 end
 
 local itemMeta = {
 	__lt = raritySort,
 	__eq = function(a, b)
-		return a.link == b.link
+		for k, v in pairs(a) do
+			if(b[k] ~= v) then
+				return false
+			end
+		end
+		return true
 	end,
 	__tostring = function(self) return tostring(self.link) end,
 }
@@ -171,8 +284,6 @@ local defragMap = function(bags)
 		local empty = firstEmpty(dest)
 		if(empty and i > empty) then
 			swap(dest, i, empty)
-			-- Update the new slot position so we can find it again
-			dest[empty].currentPos = i
 		else
 			break
 		end
@@ -283,8 +394,6 @@ local parseMap = function(dest)
 			-- From To
 			path[#path + 1] = { slot, source }
 			swap(current, i, n)
-			--swap(current, i, slot.currentPos)
-			--source.currentPos = i
 		end
 
 		i = i - 1
@@ -301,9 +410,14 @@ local OnUpdate = function(self, elapsed)
 	timer = timer + elapsed
 
 	-- Move check throttle
-	if(timer > 0.5) then
+	if(timer > 0.2) then
 		if(driving and coroutine.status(driving) == "suspended") then
-			coroutine.resume(driving, driverArgs)
+			local err, ret = coroutine.resume(driving, driverArgs)
+			if(ret) then
+				driving = nil
+				driverArg = nil
+				self:Hide()
+			end
 		end
 		timer = 0
 	end
@@ -348,13 +462,20 @@ local driver = function(path)
 		to = path[i][2]
 
 		moving = coroutine.create(moveItems)
+		local count = 0
 		while(true) do
 			err, ret = coroutine.resume(moving, from.bag, from.slot, to.bag, to.slot)
+			count = count + 1
 			--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
 
 			if(not ret) then
-				f:Show()
-				coroutine.yield(false)
+				if(count > 50) then
+					f:Hide()
+					break
+				else
+					f:Show()
+					coroutine.yield(false)
+				end
 			else
 				break
 			end
@@ -374,7 +495,7 @@ local run = function(bags)
 	driving = coroutine.create(driver)
 	driverArgs = bags
 
-	coroutine.resume(driving, driverArgs)
+	f:Show()
 end
 
 _G.walrus = function()
@@ -383,6 +504,8 @@ _G.walrus = function()
 	local defrag = defragMap(getBags())
 	local sort = sortMap(defrag)
 	local path = parseMap(sort)
+
+	print(#path)
 
 	run(path)
 end
