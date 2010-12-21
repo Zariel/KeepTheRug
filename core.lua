@@ -162,7 +162,7 @@ local nameSort = function(a, b)
 end
 
 local iLevelSort = function(a, b)
-	if(a.iLevel == b.ilevel) then
+	if(a.iLevel == b.iLevel) then
 		return nameSort(a, b)
 	else
 		return a.iLevel > b.iLevel
@@ -250,7 +250,7 @@ local getBags = function()
 	for bag = 0, 4 do
 		for slot = 1, GetContainerNumSlots(bag) do
 			local item = newItem(bag, slot)
-			item.currentPos = i
+			item.id = i
 			bags[i] = item
 
 			i = i + 1
@@ -339,6 +339,7 @@ qsort = function(t, min, max)
 	end
 end
 
+-- TODO: Optimize this
 local sortMap = function(bags)
 	local dest = {}
 
@@ -388,6 +389,7 @@ local parseMap = function(dest)
 
 		-- Find where item I is in the current layout
 		local source, n
+		-- TODO: Optimize this
 		for j = 1, #current do
 			if(current[j] == slot) then
 				source = current[j]
