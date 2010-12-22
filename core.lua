@@ -420,6 +420,7 @@ local parseMap = function(dest)
 
 	while(i > 0) do
 		if(not (slot and slot.dirty)) then
+			-- Find a slot int he target which isnt empty and has changed
 			for j = i, 1, -1 do
 				slot = dest[j]
 				i = j
@@ -431,20 +432,28 @@ local parseMap = function(dest)
 		end
 
 		-- Find where slot is in the current layout
-		local source, n
+		-- slot.id == j the first time when an item isnt moved
+		-- but when an item is moved the swap() only operates on current.
+		local n
 		-- TODO: Optimize this
 		for j = 1, #current do
-			if(current[j] == slot and j ~= i) then
-				source = current[j]
+			if(current[j] == slot) then
 				n = j
 				break
 			end
 		end
 
 		if(n and i ~= n) then
+			--print(i, n, slot.id == n)
 			-- From To
-			path[#path + 1] = { slot, source }
+			path[#path + 1] = { slot, current[n] }
 			swap(current, i, n)
+			-- Dont know if this is a good idea, should allow us to use
+			-- slot.id == n
+			--dest[n].id = i
+			--dest[i].id = n
+
+			--i = n
 		end
 
 		i = i - 1
@@ -457,14 +466,14 @@ end
 local driving, driverArg
 
 local timer = 0
+local runningTime = 0
 local OnUpdate = function(self, elapsed)
 	timer = timer + elapsed
 
 	-- Move check throttle
 	if(timer > 0.1) then
-		timer = 0
-
 		if(driving and coroutine.status(driving) == "suspended") then
+			runningTime = runningTime + timer
 			local err, ret = coroutine.resume(driving, driverArgs)
 			if(ret) then
 				driving = nil
@@ -474,6 +483,8 @@ local OnUpdate = function(self, elapsed)
 		else
 			self:Hide()
 		end
+
+		timer = 0
 	end
 
 end
@@ -506,6 +517,7 @@ end
 
 -- Time for some CRAZY couroutines!
 local driver = function(path)
+	runningTime = 0
 	print("Starting ..")
 
 	local from, to
@@ -540,7 +552,7 @@ local driver = function(path)
 		f:Hide()
 	end
 
-	print("Finished")
+	print("Finished in: " .. runningTime .. "s")
 
 	return true
 end
@@ -562,6 +574,8 @@ _G.walrus = function()
 	local defrag = defragMap(getBags())
 	local sort = sortMap(defrag)
 	local path = parseMap(sort)
+
+	print(#path)
 
 	run(path)
 end
