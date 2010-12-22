@@ -5,6 +5,9 @@
 	Mantain 2 tables, current position, target positions.
 ]]
 
+local addon = CreateFrame("Frame")
+addon.runningTime = 0
+
 -- Some table funcs
 local newT, delT, copyT
 do
@@ -233,7 +236,7 @@ local newItem = function(bag, slot)
 	return t
 end
 
-local swap = function(bags, from, to)
+function addon:Swap(bags, from, to)
 	local tmp = copyT(bags[from], {})
 	copyT(bags[to], bags[from])
 	copyT(tmp, bags[to])
@@ -242,7 +245,7 @@ local swap = function(bags, from, to)
 	bags[to].dirty = true
 end
 
-local getBags = function(bank)
+function addon:GetBags(bank)
 	local bags = {}
 
 	local i = 1
@@ -274,7 +277,7 @@ local getBags = function(bank)
 	return bags
 end
 
-local firstEmpty = function(bags)
+function addon:FirstEmpty(bags)
 	for i = 1, #bags do
 		if(bags[i].empty) then
 			return i
@@ -282,8 +285,8 @@ local firstEmpty = function(bags)
 	end
 end
 
-local defragMap = function(bags)
-	if(not firstEmpty(bags)) then
+function addon:DefragMap(bags)
+	if(not self:FirstEmpty(bags)) then
 		return bags
 	end
 
@@ -301,9 +304,9 @@ local defragMap = function(bags)
 			end
 		end
 
-		local empty = firstEmpty(dest)
+		local empty = self:FirstEmpty(dest)
 		if(empty and i > empty) then
-			swap(dest, i, empty)
+			self:Swap(dest, i, empty)
 		else
 			break
 		end
@@ -314,7 +317,7 @@ local defragMap = function(bags)
 	return dest
 end
 
-local stackMap = function(bags)
+function addon:StackMap(bags)
 	local dest = copyT(bags, {})
 
 	local i = #dest
@@ -339,14 +342,13 @@ local stackMap = function(bags)
 
 		if(n) then
 			local ammount = dest[j].maxCount - dest[j].count
-			swap(dest, i, n)
+			self:Swap(dest, i, n)
 			dest[i].ammount = ammount
 		end
 	end
 end
 
-local qsort
-qsort = function(t, min, max)
+function addon:QSort(t, min, max)
 	local pivot
 	local left, right = min, max
 
@@ -361,7 +363,7 @@ qsort = function(t, min, max)
 				right = right - 1
 			end
 
-			swap(t, left, right)
+			self:Swap(t, left, right)
 
 			left = left + 1
 			right = right - 1
@@ -375,13 +377,13 @@ qsort = function(t, min, max)
 			end
 		end
 
-		qsort(t, min, pivot - 1)
-		qsort(t, pivot + 1, max)
+		self:QSort(t, min, pivot - 1)
+		self:QSort(t, pivot + 1, max)
 	end
 end
 
 -- TODO: Optimize this
-local sortMap = function(bags)
+function addon:SortMap(bags)
 	local dest = {}
 
 	dest.bank = bags.bank
@@ -395,7 +397,7 @@ local sortMap = function(bags)
 	end
 
 	if(#dest > 1) then
-		qsort(dest, 1, #dest)
+		self:QSort(dest, 1, #dest)
 
 		for i = 1, #bags do
 			if(bags[i].empty) then
@@ -410,8 +412,8 @@ end
 -- For a given map of what the bag should look like, createa a path that will move the items so that it
 -- matches the given map.
 
-local parseMap = function(dest)
-	local current = getBags(dest.bank)
+function addon:ParseMap(dest)
+	local current = self:GetBags(dest.bank)
 
 	local i = #dest
 	local slot
@@ -433,7 +435,7 @@ local parseMap = function(dest)
 
 		-- Find where slot is in the current layout
 		-- slot.id == j the first time when an item isnt moved
-		-- but when an item is moved the swap() only operates on current.
+		-- but when an item is moved the self:Swap() only operates on current.
 		local n
 		-- TODO: Optimize this
 		for j = 1, #current do
@@ -447,7 +449,7 @@ local parseMap = function(dest)
 			--print(i, n, slot.id == n)
 			-- From To
 			path[#path + 1] = { slot, current[n] }
-			swap(current, i, n)
+			self:Swap(current, i, n)
 			-- Dont know if this is a good idea, should allow us to use
 			-- slot.id == n
 			--dest[n].id = i
@@ -463,21 +465,18 @@ local parseMap = function(dest)
 	return path
 end
 
-local driving, driverArg
-
 local timer = 0
-local runningTime = 0
-local OnUpdate = function(self, elapsed)
+function addon:OnUpdate(elapsed)
 	timer = timer + elapsed
 
 	-- Move check throttle
-	if(timer > 0.1) then
-		if(driving and coroutine.status(driving) == "suspended") then
-			runningTime = runningTime + timer
-			local err, ret = coroutine.resume(driving, driverArgs)
+	if(timer >= 0.2) then
+		if(self.driving and coroutine.status(self.driving) == "suspended") then
+			self.runningTime = self.runningTime + timer
+			local err, ret = coroutine.resume(self.driving, self, self.driverArgs)
 			if(ret) then
-				driving = nil
-				driverArg = nil
+				self.driving = nil
+				self.driverArg = nil
 				self:Hide()
 			end
 		else
@@ -489,11 +488,10 @@ local OnUpdate = function(self, elapsed)
 
 end
 
-local f = CreateFrame("frame")
-f:Hide()
-f:SetScript("OnUpdate", OnUpdate)
+addon:Hide()
+addon:SetScript("OnUpdate", addon.OnUpdate)
 
-local moveItems = function(fromBag, fromSlot, toBag, toSlot)
+function addon:MoveItems(fromBag, fromSlot, toBag, toSlot)
 	local _, locked1, locked2
 	while(true) do
 		_, _, locked1 = GetContainerItemInfo(fromBag, fromSlot)
@@ -516,8 +514,8 @@ local moveItems = function(fromBag, fromSlot, toBag, toSlot)
 end
 
 -- Time for some CRAZY couroutines!
-local driver = function(path)
-	runningTime = 0
+function addon:Driver(path)
+	self.runningTime = 0
 	print("Starting ..")
 
 	local from, to
@@ -529,19 +527,20 @@ local driver = function(path)
 		from = path[i][1]
 		to = path[i][2]
 
-		moving = coroutine.create(moveItems)
+		moving = coroutine.create(self.MoveItems)
 		local count = 0
+
 		while(true) do
-			err, ret = coroutine.resume(moving, from.bag, from.slot, to.bag, to.slot)
+			err, ret = coroutine.resume(moving, self, from.bag, from.slot, to.bag, to.slot)
 			count = count + 1
 			--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
 
 			if(not ret) then
-				if(count > 50) then
-					f:Hide()
+				if(count > 5) then
+					self:Hide()
 					break
 				else
-					f:Show()
+					self:Show()
 					coroutine.yield(false)
 				end
 			else
@@ -549,34 +548,37 @@ local driver = function(path)
 			end
 		end
 
-		f:Hide()
+		self:Hide()
 	end
 
-	print("Finished in: " .. runningTime .. "s")
+	print("Finished in: " .. self.runningTime .. "s")
 
 	return true
 end
 
-local run = function(bags)
-	if(driving and coroutine.status(driving) ~= "dead") then
+function addon:Run(bags)
+	if(self.driving and coroutine.status(self.driving) ~= "dead") then
 		return
 	end
 
-	driving = coroutine.create(driver)
-	driverArgs = bags
+	self.driving = coroutine.create(addon.Driver)
+	self.driverArgs = bags
 
-	f:Show()
+	self:Show()
 end
 
+local _G = getfenv(0)
+
 _G.walrus = function()
-	--local map = parseMap(defragMap(getBags()))
-	--local map = parseMap(defragMap(sortMap(getBags())))
-	local defrag = defragMap(getBags())
-	local sort = sortMap(defrag)
-	local path = parseMap(sort)
+	--local map = self:ParseMap(self:DefragMap(self:GetBags()()))
+	--local map = self:ParseMap(self:DefragMap(self:SortMap(self:GetBags()())))
+	local defrag = addon:DefragMap(addon:GetBags())
+	local sort = addon:SortMap(defrag)
+	local path = addon:ParseMap(sort)
 
 	print(#path)
 
-	run(path)
+	addon:Run(path)
 end
 
+_G.KeepTheRug = addon
