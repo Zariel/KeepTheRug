@@ -282,6 +282,14 @@ local firstEmpty = function(bags)
 	end
 end
 
+local lastEmpty = function(bags)
+	for i = #bags, 1, -1 do
+		if(bags[i].empty) then
+			return i
+		end
+	end
+end
+
 local defragMap = function(bags)
 	if(not firstEmpty(bags)) then
 		return bags
@@ -417,7 +425,10 @@ local parseMap = function(dest)
 	local slot
 
 	local path = {}
+	local temp = {}
 
+	-- Pass one, find all slots which need moving to an empty slot.
+	-- Move all other items to the opposite side of the bag
 	while(i > 0) do
 		if(not (slot and slot.dirty)) then
 			for j = i, 1, -1 do
@@ -442,14 +453,65 @@ local parseMap = function(dest)
 		end
 
 		if(n and i ~= n) then
-			-- From To
-			path[#path + 1] = { slot, source }
-			swap(current, i, n)
+			print(slot, source)
+			if(source.empty) then
+				-- From To
+				path[#path + 1] = { slot, source }
+				swap(current, i, n)
+			else
+				local last = lastEmpty(current)
+				path[#path +1] = { slot, current[last] }
+				swap(current, i, last)
+			end
 		end
 
 		i = i - 1
 		slot = dest[i]
 	end
+
+	-- pass 2, move all the items to their correct location.
+	i = #dest
+	slot = nil
+
+	--[[
+	while(i > 0) do
+		if(not (slot and slot.dirty)) then
+			for j = i, 1, -1 do
+			--	print(slot, current[j])
+				slot = dest[j]
+				i = j
+
+				if(slot.dirty and not slot.empty) then
+					break
+				end
+			end
+		end
+
+		-- Find where slot is in the current layout
+		local source, n
+		-- TODO: Optimize this
+		for j = 1, #current do
+			if(current[j] == slot and j ~= i) then
+				source = current[j]
+				n = j
+				break
+			end
+		end
+
+		if(n and i ~= n) then
+			-- From To
+			path[#path + 1] = { slot, source }
+			swap(current, i, n)
+		else
+			local last = lastEmpty(current)
+			path[#path +1] = { slot, current[last] }
+			swap(current, i, last)
+		end
+
+		i = i - 1
+		slot = dest[i]
+	end
+	]]
 
 	return path
 end
@@ -560,8 +622,8 @@ _G.walrus = function()
 	--local map = parseMap(defragMap(getBags()))
 	--local map = parseMap(defragMap(sortMap(getBags())))
 	local defrag = defragMap(getBags())
-	local sort = sortMap(defrag)
-	local path = parseMap(sort)
+	--local sort = sortMap(defrag)
+	local path = parseMap(defrag)
 
 	run(path)
 end
