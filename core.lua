@@ -421,7 +421,8 @@ function addon:ParseMap(dest)
 	for i = 1, #dest do
 		slot = dest[i]
 		-- Are we in the correct place ?
-		if(i ~= slot.id) then
+		--if(i ~= slot.id) then
+		if(slot ~= current[i]) then
 			-- Find where slot is in the current layout
 			-- slot.id == j the first time when an item isnt moved
 			-- but when an item is moved the self:Swap() only operates on current.
@@ -433,8 +434,6 @@ function addon:ParseMap(dest)
 					break
 				end
 			end
-
-			--print(i, n, slot.id)
 
 			if(n and i ~= n) then
 				--print(i, n, slot.id == n)
@@ -517,7 +516,6 @@ function addon:Driver(path)
 			err, ret = coroutine.resume(moving, self, from.bag, from.slot, to.bag, to.slot)
 			count = count + 1
 			--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
-			print(i, ret, coroutine.status(moving))
 
 			if(not ret) then
 				if(count > 50) then
@@ -554,10 +552,10 @@ end
 
 local _G = getfenv(0)
 
-_G.walrus = function()
+_G.walrus = function(bank)
 	--local map = self:ParseMap(self:DefragMap(self:GetBags()()))
 	--local map = self:ParseMap(self:DefragMap(self:SortMap(self:GetBags()())))
-	local defrag = addon:DefragMap(addon:GetBags(true))
+	local defrag = addon:DefragMap(addon:GetBags(bank))
 	local sort = addon:SortMap(defrag)
 	local path = addon:ParseMap(sort)
 
