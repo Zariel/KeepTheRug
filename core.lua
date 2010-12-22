@@ -416,50 +416,29 @@ function addon:ParseMap(dest)
 	local current = self:GetBags(dest.bank)
 
 	local i = #dest
-	local slot
-
 	local path = {}
+	local dirty = {}
 
-	while(i > 0) do
-		if(not (slot and slot.dirty)) then
-			-- Find a slot int he target which isnt empty and has changed
-			for j = i, 1, -1 do
-				slot = dest[j]
-				i = j
+	-- dest is the sorted bag list
+	for i = 1, #dest do
+		if(current[i] ~= dest[i]) then
+			if(not dirty[i]) then
+				local slot
+				for j = #current, 1, -1 do
+					if(current[j] == dest[i] and not dirty[j]) then
+						slot = j
+						break
+					end
+				end
 
-				if(slot.dirty and not slot.empty) then
-					break
+				print(i, slot)
+				if(slot) then
+					path[#path + 1] = { current[i], current[slot] }
+					dirty[i] = true
+					dirty[slot] = true
 				end
 			end
 		end
-
-		-- Find where slot is in the current layout
-		-- slot.id == j the first time when an item isnt moved
-		-- but when an item is moved the self:Swap() only operates on current.
-		local n
-		-- TODO: Optimize this
-		for j = 1, #current do
-			if(current[j] == slot) then
-				n = j
-				break
-			end
-		end
-
-		if(n and i ~= n) then
-			--print(i, n, slot.id == n)
-			-- From To
-			path[#path + 1] = { slot, current[n] }
-			self:Swap(current, i, n)
-			-- Dont know if this is a good idea, should allow us to use
-			-- slot.id == n
-			--dest[n].id = i
-			--dest[i].id = n
-
-			--i = n
-		end
-
-		i = i - 1
-		slot = dest[i]
 	end
 
 	return path
