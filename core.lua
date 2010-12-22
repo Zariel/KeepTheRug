@@ -415,51 +415,34 @@ end
 function addon:ParseMap(dest)
 	local current = self:GetBags(dest.bank)
 
-	local i = #dest
 	local slot
-
 	local path = {}
 
-	while(i > 0) do
-		if(not (slot and slot.dirty)) then
-			-- Find a slot int he target which isnt empty and has changed
-			for j = i, 1, -1 do
-				slot = dest[j]
-				i = j
-
-				if(slot.dirty and not slot.empty) then
+	for i = 1, #dest do
+		slot = dest[i]
+		-- Are we in the correct place ?
+		if(i ~= slot.id) then
+			-- Find where slot is in the current layout
+			-- slot.id == j the first time when an item isnt moved
+			-- but when an item is moved the self:Swap() only operates on current.
+			local n
+			-- TODO: Optimize this
+			for j = 1, #current do
+				if(current[j] == slot) then
+					n = j
 					break
 				end
 			end
-		end
 
-		-- Find where slot is in the current layout
-		-- slot.id == j the first time when an item isnt moved
-		-- but when an item is moved the self:Swap() only operates on current.
-		local n
-		-- TODO: Optimize this
-		for j = 1, #current do
-			if(current[j] == slot) then
-				n = j
-				break
+			--print(i, n, slot.id)
+
+			if(n and i ~= n) then
+				--print(i, n, slot.id == n)
+				-- From To
+				path[#path + 1] = { slot, current[n] }
+				self:Swap(current, i, n)
 			end
 		end
-
-		if(n and i ~= n) then
-			--print(i, n, slot.id == n)
-			-- From To
-			path[#path + 1] = { slot, current[n] }
-			self:Swap(current, i, n)
-			-- Dont know if this is a good idea, should allow us to use
-			-- slot.id == n
-			--dest[n].id = i
-			--dest[i].id = n
-
-			--i = n
-		end
-
-		i = i - 1
-		slot = dest[i]
 	end
 
 	return path
@@ -534,9 +517,11 @@ function addon:Driver(path)
 			err, ret = coroutine.resume(moving, self, from.bag, from.slot, to.bag, to.slot)
 			count = count + 1
 			--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
+			print(i, ret, coroutine.status(moving))
 
 			if(not ret) then
-				if(count > 5) then
+				if(count > 50) then
+					print(string.format("Error moving (%d, %d) -> (%d, %d)", from.bag, from.slot, to.bag, to.slot))
 					self:Hide()
 					break
 				else
@@ -572,7 +557,7 @@ local _G = getfenv(0)
 _G.walrus = function()
 	--local map = self:ParseMap(self:DefragMap(self:GetBags()()))
 	--local map = self:ParseMap(self:DefragMap(self:SortMap(self:GetBags()())))
-	local defrag = addon:DefragMap(addon:GetBags())
+	local defrag = addon:DefragMap(addon:GetBags(true))
 	local sort = addon:SortMap(defrag)
 	local path = addon:ParseMap(sort)
 
