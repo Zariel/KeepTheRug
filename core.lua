@@ -58,6 +58,13 @@ local nullMeta = {
 	end
 }
 
+local bagFamily = setmetatable({}, {
+	__index = function(self, key)
+		rawset(self, key, GetItemFamily(-key + 1))
+		return rawget(self, key)
+	end
+})
+
 -- Sorting
 local itemTypeWeight = setmetatable({
 	["Miscellaneous"] = 0,
@@ -212,16 +219,15 @@ local itemMeta = {
 -- TODO: Add item info caching
 local newItem = function(bag, slot)
 	local t = setmetatable({}, itemMeta)
-	local _, count, _, rarity, _, _, link = GetContainerItemInfo(bag, slot)
-	--local link = GetContainerItemLink(bag, slot)
+	local link = GetContainerItemLink(bag, slot)
 
 	t.bag = bag
 	t.slot = slot
-	t.link = link
 	t.empty = not link
 
 	if(link) then
 		local name, _, rarity, iLevel, minLevel, itemType, subType, maxCount = GetItemInfo(link)
+		t.link = link
 		t.name = name
 		t.iLevel = iLevel
 		t.minLevel = minLevel
@@ -231,9 +237,14 @@ local newItem = function(bag, slot)
 		t.count = count
 		t.rarity = rarity
 		t.full = count == maxCount
+		t.family = GetItemFamily(link)
 	end
 
 	return t
+end
+
+function addon:Print(...)
+	return print("|cffKTR: ")
 end
 
 function addon:Swap(bags, from, to)
@@ -243,6 +254,18 @@ function addon:Swap(bags, from, to)
 
 	bags[from].dirty = true
 	bags[to].dirty = true
+end
+
+function addon:Reverse(bags)
+	local n = #bags
+	for i = 1, #bags do
+		print(i, bags[i], n - i + 1, bags[n - i + 1])
+		--self:Swap(bags, i, n - i + 1)
+	end
+end
+
+function addon:ItemInBag(item, bag)
+	return bit.band(item.family, bagFamily[bag])
 end
 
 function addon:GetBags(bank)
@@ -383,7 +406,7 @@ function addon:QSort(t, min, max)
 end
 
 -- TODO: Optimize this
-function addon:SortMap(bags)
+function addon:SortMap(bags, junkEnd)
 	local dest = {}
 
 	dest.bank = bags.bank
@@ -402,6 +425,21 @@ function addon:SortMap(bags)
 		for i = 1, #bags do
 			if(bags[i].empty) then
 				table.insert(dest, i, bags[i])
+			end
+		end
+
+		if(junkEnd) then
+			for i = #dest, 1 do
+				if(dest[i].rarity ~= 1) then
+					local last = self:LastEmpty(dest)
+					if(last) then
+						self:Swap(dest, i, last)
+					else
+						break
+					end
+				else
+					break
+				end
 			end
 		end
 	end
