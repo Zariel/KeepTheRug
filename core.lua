@@ -483,44 +483,6 @@ function addon:SortMap()
 	return true
 end
 
--- For a given map of what the bag should look like, createa a path that will move the items so that it
--- matches the given map.
-
-function addon:ParseMap(dest)
-	local current = self:GetBags(dest.bank)
-
-	local slot
-	local path = {}
-
-	for i = 1, #dest do
-		slot = dest[i]
-		-- Are we in the correct place ?
-		--if(i ~= slot.id) then
-		if(slot ~= current[i]) then
-			-- Find where slot is in the current layout
-			-- slot.id == j the first time when an item isnt moved
-			-- but when an item is moved the self:Swap() only operates on current.
-			local n
-			-- TODO: Optimize this
-			for j = 1, #current do
-				if(current[j] == slot) then
-					n = j
-					break
-				end
-			end
-
-			if(n and i ~= n) then
-				--print(i, n, slot.id == n)
-				-- From To
-				path[#path + 1] = { slot, current[n] }
-				self:Swap(current, i, n)
-			end
-		end
-	end
-
-	return path
-end
-
 local timer = 0
 function addon:OnUpdate(elapsed)
 	timer = timer + elapsed
@@ -570,61 +532,6 @@ function addon:MoveItems(fromBag, fromSlot, toBag, toSlot)
 	end
 
 	return true
-end
-
--- Time for some CRAZY couroutines!
-function addon:Driver(path)
-	self.runningTime = 0
-	print("Starting ..")
-
-	local from, to
-	local err, ret
-
-	local moving
-
-	for i = 1, #path do
-		from = path[i][1]
-		to = path[i][2]
-
-		moving = coroutine.create(self.MoveItems)
-		local count = 0
-
-		while(true) do
-			err, ret = coroutine.resume(moving, self, from.bag, from.slot, to.bag, to.slot)
-			count = count + 1
-			--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
-
-			if(not ret) then
-				if(count > 50) then
-					print(string.format("Error moving (%d, %d) -> (%d, %d)", from.bag, from.slot, to.bag, to.slot))
-					self:Hide()
-					break
-				else
-					self:Show()
-					coroutine.yield(false)
-				end
-			else
-				break
-			end
-		end
-
-		self:Hide()
-	end
-
-	print("Finished in: " .. self.runningTime .. "s")
-
-	return true
-end
-
-function addon:Run(bags)
-	if(self.driving and coroutine.status(self.driving) ~= "dead") then
-		return
-	end
-
-	self.driving = coroutine.create(addon.Driver)
-	self.driverArgs = bags
-
-	self:Show()
 end
 
 local _G = getfenv(0)
