@@ -248,12 +248,26 @@ function addon:Print(...)
 end
 
 function addon:Swap(bags, from, to)
+	local swapper = coroutine.create(addon.MoveItems)
+
+	while(true) do
+		local err, ret = coroutine.resume(swapper, addon, bags[from].bag, bags[from].slot, bags[to].bag, bags[to].slot)
+		if(ret) then
+			break
+		else
+			addon:Show()
+			coroutine.yield(false)
+		end
+	end
+
 	local tmp = copyT(bags[from], {})
 	copyT(bags[to], bags[from])
 	copyT(tmp, bags[to])
 
 	bags[from].dirty = true
 	bags[to].dirty = true
+
+	return true
 end
 
 function addon:Reverse(bags)
@@ -308,7 +322,8 @@ function addon:FirstEmpty(bags)
 	end
 end
 
-function addon:DefragMap(bags)
+function addon:DefragMap()
+	local bags = self:GetBags()
 	if(not self:FirstEmpty(bags)) then
 		return bags
 	end
@@ -329,7 +344,22 @@ function addon:DefragMap(bags)
 
 		local empty = self:FirstEmpty(dest)
 		if(empty and i > empty) then
-			self:Swap(dest, i, empty)
+			local swap = coroutine.create(self.Swap)
+			local err, ret
+
+			while(true) do
+				err, ret = coroutine.resume(swap, self, dest, i, n)
+				if(not err) then
+					error(ret)
+				end
+
+				if(ret) then
+					break
+				else
+					self:Show()
+					coroutine.yield(false)
+				end
+			end
 		else
 			break
 		end
@@ -337,7 +367,7 @@ function addon:DefragMap(bags)
 		i = i - 1
 	end
 
-	return dest
+	return true
 end
 
 function addon:StackMap(bags)
@@ -365,48 +395,31 @@ function addon:StackMap(bags)
 
 		if(n) then
 			local ammount = dest[j].maxCount - dest[j].count
-			self:Swap(dest, i, n)
+			local swap = coroutine.create(self.Swap)
+			local err, ret
+
+			while(true) do
+				err, ret = coroutine.resume(swap, self, dest, i, n)
+				if(not err) then
+					error(ret)
+				end
+				if(ret) then
+					break
+				else
+					self:Show()
+				end
+			end
+
 			dest[i].ammount = ammount
 		end
 	end
 end
 
-function addon:QSort(t, min, max)
-	local pivot
-	local left, right = min, max
-
-	if(max > min) then
-		pivot = math.floor((min + max) / 2)
-		while(left <= pivot and right >= pivot) do
-			while(t[left] < t[pivot] and left <= pivot) do
-				left = left + 1
-			end
-
-			while(t[right] > t[pivot] and right >= pivot) do
-				right = right - 1
-			end
-
-			self:Swap(t, left, right)
-
-			left = left + 1
-			right = right - 1
-
-			if(left - 1 == pivot) then
-				right = right + 1
-				pivot = right
-			elseif(right + 1 == pivot) then
-				left = left - 1
-				pivot = left
-			end
-		end
-
-		self:QSort(t, min, pivot - 1)
-		self:QSort(t, pivot + 1, max)
-	end
-end
 
 -- TODO: Optimize this
-function addon:SortMap(bags, junkEnd)
+function addon:SortMap()
+	local bags = self:GetBags()
+
 	local dest = {}
 
 	dest.bank = bags.bank
@@ -420,7 +433,30 @@ function addon:SortMap(bags, junkEnd)
 	end
 
 	if(#dest > 1) then
-		self:QSort(dest, 1, #dest)
+		local n = #dest
+
+		for i = 1, n do
+			for j = n, i, -1 do
+				if(dest[j - 1] > dest[j]) then
+					local swap = coroutine.create(self.Swap)
+					local err, ret
+
+					while(true) do
+						err, ret = coroutine.resume(swap, self, dest, j - 1, j)
+						if(not err) then
+							error(ret)
+						end
+
+						if(ret) then
+							break
+						else
+							self:Show()
+							coroutine.yield(false)
+						end
+					end
+				end
+			end
+		end
 
 		for i = 1, #bags do
 			if(bags[i].empty) then
@@ -444,7 +480,7 @@ function addon:SortMap(bags, junkEnd)
 		end
 	end
 
-	return dest
+	return true
 end
 
 -- For a given map of what the bag should look like, createa a path that will move the items so that it
@@ -491,12 +527,15 @@ function addon:OnUpdate(elapsed)
 
 	-- Move check throttle
 	if(timer >= 0.2) then
-		if(self.driving and coroutine.status(self.driving) == "suspended") then
+		if(self.job and coroutine.status(self.job) == "suspended") then
 			self.runningTime = self.runningTime + timer
-			local err, ret = coroutine.resume(self.driving, self, self.driverArgs)
+			local err, ret = coroutine.resume(self.job, self)
+			if(not err) then
+				error(ret)
+			end
+
 			if(ret) then
-				self.driving = nil
-				self.driverArg = nil
+				self.job = nil
 				self:Hide()
 			end
 		else
@@ -593,13 +632,12 @@ local _G = getfenv(0)
 _G.walrus = function(bank)
 	--local map = self:ParseMap(self:DefragMap(self:GetBags()()))
 	--local map = self:ParseMap(self:DefragMap(self:SortMap(self:GetBags()())))
-	local defrag = addon:DefragMap(addon:GetBags(bank))
-	local sort = addon:SortMap(defrag)
-	local path = addon:ParseMap(sort)
+	--addon.job = coroutine.create(addon.DefragMap)
+	addon.job = coroutine.create(addon.SortMap)
+	addon:Show()
+	--local path = addon:ParseMap(sort)
 
-	print(#path)
-
-	addon:Run(path)
+	--addon:Run(path)
 end
 
 _G.KeepTheRug = addon
