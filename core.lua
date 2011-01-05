@@ -171,9 +171,17 @@ local nameSort = function(a, b)
 	end
 end
 
+local iconSort = function(a, b)
+	if(a.icon == b.icon) then
+		return nameSort(a, b)
+	else
+		return a.icon > b.icon
+	end
+end
+
 local iLevelSort = function(a, b)
 	if(a.iLevel == b.iLevel) then
-		return nameSort(a, b)
+		return iconSort(a, b)
 	else
 		return a.iLevel > b.iLevel
 	end
@@ -226,7 +234,9 @@ local newItem = function(bag, slot)
 	t.empty = not link
 
 	if(link) then
+		local icon, count = GetContainerItemInfo(bag, slot)
 		local name, _, rarity, iLevel, minLevel, itemType, subType, maxCount = GetItemInfo(link)
+
 		t.link = link
 		t.name = name
 		t.iLevel = iLevel
@@ -238,6 +248,7 @@ local newItem = function(bag, slot)
 		t.rarity = rarity
 		t.full = count == maxCount
 		t.family = GetItemFamily(link)
+		t.icon = icon
 	end
 
 	return t
@@ -556,10 +567,10 @@ function addon:Driver(path)
 			--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
 
 			if(not ret) then
-				if(count > 50) then
+				if(count > 25) then
 					print(string.format("Error moving (%d, %d) -> (%d, %d)", from.bag, from.slot, to.bag, to.slot))
 					self:Hide()
-					break
+					return true
 				else
 					self:Show()
 					coroutine.yield(false)
@@ -601,5 +612,3 @@ _G.walrus = function(bank)
 
 	addon:Run(path)
 end
-
-_G.KeepTheRug = addon
