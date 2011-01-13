@@ -255,7 +255,7 @@ local newItem = function(bag, slot)
 end
 
 function addon:Print(...)
-	return print("|cffKTR: ")
+	return print("|cffKtR: ")
 end
 
 function addon:Swap(bags, from, to)
@@ -432,6 +432,7 @@ function addon:SortMap(bags, junkEnd)
 
 	if(#dest > 1) then
 		self:QSort(dest, 1, #dest)
+		--table.sort(dest)
 
 		for i = 1, #bags do
 			if(bags[i].empty) then
@@ -501,7 +502,7 @@ function addon:OnUpdate(elapsed)
 	timer = timer + elapsed
 
 	-- Move check throttle
-	if(timer >= 0.2) then
+	if(timer >= 0.4) then
 		if(self.driving and coroutine.status(self.driving) == "suspended") then
 			self.runningTime = self.runningTime + timer
 			local err, ret = coroutine.resume(self.driving, self, self.driverArgs)
