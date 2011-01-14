@@ -187,9 +187,17 @@ local iLevelSort = function(a, b)
 	end
 end
 
+local raritySort = function(a, b)
+	if(a.rarity == b.rarity) then
+		return iLevelSort(a, b)
+	else
+		return a.rarity > b.rarity
+	end
+end
+
 local itemSubTypeSort = function(a, b)
 	if(a.subType == b.subType) then
-		return iLevelSort(a, b)
+		return raritySort(a, b)
 	else
 		return itemSubWeight[a.itemType][a.subType] > itemSubWeight[b.itemType][b.subType]
 	end
@@ -203,16 +211,8 @@ local itemTypeSort = function(a, b)
 	end
 end
 
-local raritySort = function(a, b)
-	if(a.rarity == b.rarity) then
-		return itemTypeSort(a, b)
-	else
-		return a.rarity > b.rarity
-	end
-end
-
 local itemMeta = {
-	__lt = raritySort,
+	__lt = itemTypeSort,
 	__eq = function(a, b)
 		for k, v in pairs(a) do
 			if(k ~= "bag" and k ~= "slot" and b[k] ~= v) then
