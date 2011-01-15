@@ -281,6 +281,9 @@ function addon:Swap(bags, from, to)
 	return true
 end
 
+local doSwap = function(self, t, i, n)
+end
+
 function addon:Reverse(bags)
 	local n = #bags
 	for i = 1, #bags do
@@ -355,11 +358,48 @@ function addon:DefragMap()
 
 		local empty = self:FirstEmpty(dest)
 		if(empty and i > empty) then
+		else
+			break
+		end
+
+		i = i - 1
+	end
+
+	return true
+end
+
+local heapSort = function(t)
+
+	return t
+end
+
+local heapify = function(t)
+	local start = #t / 2
+
+	while start >= 1 do
+		siftDown(t, start, #t)
+		start = start - 1
+	end
+end
+
+local siftDown = function(t, start, last)
+	local root = start
+
+	while(root * 2 <= last) do
+		local _swap = root
+		local child = root * 2
+		if(t[_swap] < t[child]) then
+			_swap = child
+		end
+		if(child < last and t[_swap] < t[child + 1]) then
+			_swap = child + 1
+		end
+		if(_swap ~= root) then
 			local swap = coroutine.create(self.Swap)
 			local err, ret
 
 			while(true) do
-				err, ret = coroutine.resume(swap, self, dest, i, n)
+				err, ret = coroutine.resume(swap, self, t, root, _swap)
 				if(not err) then
 					error(ret)
 				end
@@ -371,127 +411,37 @@ function addon:DefragMap()
 					coroutine.yield(false)
 				end
 			end
+
+			root = _swap
 		else
 			break
 		end
-
-		i = i - 1
-	end
-
-	return true
-end
-
-function addon:StackMap(bags)
-	local dest = copyT(bags, {})
-
-	local i = #dest
-	local slot
-	while(i > 0) do
-		for j = i, 1, -1 do
-			slot = dest[j]
-			i = j
-			if(not (slot.empty or slot.count < slot.maxCount)) then
-				break
-			end
-		end
-
-		-- Find another stack to dump onto.
-		local n
-		for j = 1, i do
-			if(slot.name == dest[j].name and dest[j].count < dest[j].maxCount) then
-				n = j
-				break
-			end
-		end
-
-		if(n) then
-			local ammount = dest[j].maxCount - dest[j].count
-			local swap = coroutine.create(self.Swap)
-			local err, ret
-
-			while(true) do
-				err, ret = coroutine.resume(swap, self, dest, i, n)
-				if(not err) then
-					error(ret)
-				end
-				if(ret) then
-					break
-				else
-					self:Show()
-				end
-			end
-
-			dest[i].ammount = ammount
-		end
 	end
 end
 
+function addon:Sort(bags)
+	heapify(bags)
+	local last = #t
+	while last > 0 do
+		local swap = coroutine.create(self.Swap)
+		local err, ret
 
--- TODO: Optimize this
-function addon:SortMap()
-	local bags = self:GetBags()
+		while(true) do
+			err, ret = coroutine.resume(swap, self, t, last, 1)
+			if(not err) then
+				error(ret)
+			end
 
-	local dest = {}
-
-	dest.bank = bags.bank
-
-	local slot, prev
-
-	for i = 1, #bags do
-		if(not bags[i].empty) then
-			dest[#dest + 1] = bags[i]
+			if(ret) then
+				break
+			else
+				self:Show()
+				coroutine.yield(false)
+			end
 		end
+		siftDown(t, 1, last - 1)
+		last = last - 1
 	end
-
-	if(#dest > 1) then
-		local n = #dest
-
-		for i = 1, n do
-			for j = n, i, -1 do
-				if(dest[j - 1] > dest[j]) then
-					local swap = coroutine.create(self.Swap)
-					local err, ret
-
-					while(true) do
-						err, ret = coroutine.resume(swap, self, dest, j - 1, j)
-						if(not err) then
-							error(ret)
-						end
-
-						if(ret) then
-							break
-						else
-							self:Show()
-							coroutine.yield(false)
-						end
-					end
-				end
-			end
-		end
-
-		for i = 1, #bags do
-			if(bags[i].empty) then
-				table.insert(dest, i, bags[i])
-			end
-		end
-
-		if(junkEnd) then
-			for i = #dest, 1 do
-				if(dest[i].rarity ~= 1) then
-					local last = self:LastEmpty(dest)
-					if(last) then
-						self:Swap(dest, i, last)
-					else
-						break
-					end
-				else
-					break
-				end
-			end
-		end
-	end
-
-	return true
 end
 
 local timer = 0
@@ -549,13 +499,7 @@ local _G = getfenv(0)
 
 function _G.SlashCmdList.WALRUS(msg)
 	local bank = string.match(msg, "(%S)") and true
-	--local map = self:ParseMap(self:DefragMap(self:GetBags()()))
-	--local map = self:ParseMap(self:DefragMap(self:SortMap(self:GetBags()())))
-	--addon.job = coroutine.create(addon.DefragMap)
 	addon.job = coroutine.create(addon.SortMap)
 	addon:Show()
-	--local path = addon:ParseMap(sort)
-
-	--addon:Run(path)
 end
 _G.SLASH_WALRUS1 = "/walrus"
