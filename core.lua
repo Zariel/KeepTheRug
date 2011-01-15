@@ -187,17 +187,9 @@ local iLevelSort = function(a, b)
 	end
 end
 
-local raritySort = function(a, b)
-	if(a.rarity == b.rarity) then
-		return iLevelSort(a, b)
-	else
-		return a.rarity > b.rarity
-	end
-end
-
 local itemSubTypeSort = function(a, b)
 	if(a.subType == b.subType) then
-		return raritySort(a, b)
+		return iLevelSort(a, b)
 	else
 		return itemSubWeight[a.itemType][a.subType] > itemSubWeight[b.itemType][b.subType]
 	end
@@ -211,8 +203,16 @@ local itemTypeSort = function(a, b)
 	end
 end
 
+local raritySort = function(a, b)
+	if(a.rarity == b.rarity) then
+		return itemTypeSort(a, b)
+	else
+		return a.rarity > b.rarity
+	end
+end
+
 local itemMeta = {
-	__lt = itemTypeSort,
+	__lt = raritySort,
 	__eq = function(a, b)
 		for k, v in pairs(a) do
 			if(k ~= "bag" and k ~= "slot" and b[k] ~= v) then
@@ -502,7 +502,7 @@ function addon:OnUpdate(elapsed)
 	timer = timer + elapsed
 
 	-- Move check throttle
-	if(timer >= 0.4) then
+	if(timer > 0.15) then
 		if(self.driving and coroutine.status(self.driving) == "suspended") then
 			self.runningTime = self.runningTime + timer
 			local err, ret = coroutine.resume(self.driving, self, self.driverArgs)
@@ -602,7 +602,8 @@ end
 
 local _G = getfenv(0)
 
-_G.walrus = function(bank)
+function _G.SlashCmdList.WALRUS(msg)
+	local bank = string.match(msg, "(%S)") and true
 	--local map = self:ParseMap(self:DefragMap(self:GetBags()()))
 	--local map = self:ParseMap(self:DefragMap(self:SortMap(self:GetBags()())))
 	local defrag = addon:DefragMap(addon:GetBags(bank))
@@ -613,3 +614,4 @@ _G.walrus = function(bank)
 
 	addon:Run(path)
 end
+_G.SLASH_WALRUS1 = "/walrus"
