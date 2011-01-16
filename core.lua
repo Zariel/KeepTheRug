@@ -454,12 +454,13 @@ function addon:ParseMap(dest)
 
 	local slot
 	local path = {}
+	local dirty = {}
 
 	for i = 1, #dest do
 		slot = dest[i]
 		-- Are we in the correct place ?
 		--if(i ~= slot.id) then
-		if(slot.link ~= current[i].link) then
+		if(slot ~= current[i] and slot.link) then
 			-- Find where slot is in the current layout
 			-- slot.id == j the first time when an item isnt moved
 			-- but when an item is moved the self:Swap() only operates on current.
@@ -473,11 +474,12 @@ function addon:ParseMap(dest)
 				end
 			end
 
-			if(n and i ~= n) then
-			--if(n and i ~= n) then
-				-- From To
+			if(n and i ~= n and not dirty[n]) then
 				path[#path + 1] = { slot, current[n] }
+
 				self:Swap(current, i, n)
+				-- i is now in position, dont move it again
+				dirty[i] = true
 			end
 		end
 	end
@@ -544,11 +546,13 @@ function addon:Driver(path)
 		from = path[i][1]
 		to = path[i][2]
 
+		--[[
 		if(not from.link and to.link) then
 			local x = from
 			from = to
 			to = x
 		end
+		]]
 
 		moving = coroutine.create(self.MoveItems)
 		local count = 0
@@ -559,7 +563,7 @@ function addon:Driver(path)
 			count = count + 1
 
 			if(not ret) then
-				if(count > 50) then
+				if(count > 60) then
 					print(string.format("Error moving (%d, %d) -> (%d, %d)", from.bag, from.slot, to.bag, to.slot))
 					return true
 				else
@@ -573,7 +577,7 @@ function addon:Driver(path)
 		coroutine.yield(false)
 	end
 
-	print("Finished in: " .. self.runningTime .. "s")
+	print("Finished in: " .. math.floor(((self.runningTime * 100) + 0.5) / 100) .. "s")
 
 	return true
 end
@@ -594,13 +598,17 @@ local _G = getfenv(0)
 function _G.SlashCmdList.WALRUS(msg)
 	local bank = string.match(msg, "(%S)") and true
 	--local defrag = addon:DefragMap(addon:GetBags(bank))
-	local sort = addon:SortMap(addon:GetBags(bank), false, true)
+	local sort = addon:SortMap(addon:GetBags(bank), true, true)
 	local path = addon:ParseMap(sort)
 
-	print(#path)
+	if(#path > 1) then
+		print(#path)
 
-	addon:Show()
-	addon:Run(path)
+		addon:Show()
+		addon:Run(path)
+	else
+		print("Inventory already clean.")
+	end
 end
 
 _G.SLASH_WALRUS1 = "/walrus"
