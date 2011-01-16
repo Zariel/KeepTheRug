@@ -424,11 +424,6 @@ function addon:SortMap(bags, reverse, junkEnd)
 	if(#dest > 1) then
 		self:QSort(dest, 1, #dest)
 
-		-- Dirty hack :E
-		if(reverse) then
-			reverseT(dest)
-		end
-
 		if(junkEnd) then
 			for i = #dest, 1 do
 				if(dest[i].rarity == 1) then
@@ -440,6 +435,11 @@ function addon:SortMap(bags, reverse, junkEnd)
 					end
 				end
 			end
+		end
+
+		-- Dirty hack :E
+		if(reverse) then
+			reverseT(dest)
 		end
 	end
 
@@ -594,7 +594,7 @@ local _G = getfenv(0)
 function _G.SlashCmdList.WALRUS(msg)
 	local bank = string.match(msg, "(%S)") and true
 	--local defrag = addon:DefragMap(addon:GetBags(bank))
-	local sort = addon:SortMap(addon:GetBags(bank))
+	local sort = addon:SortMap(addon:GetBags(bank), false, true)
 	local path = addon:ParseMap(sort)
 
 	print(#path)
