@@ -431,15 +431,13 @@ function addon:SortMap(bags, reverse, junkEnd)
 
 		if(junkEnd) then
 			for i = #dest, 1 do
-				if(dest[i].rarity ~= 1) then
+				if(dest[i].rarity == 1) then
 					local last = self:LastEmpty(dest)
 					if(last) then
 						self:Swap(dest, i, last)
 					else
 						break
 					end
-				else
-					break
 				end
 			end
 		end
@@ -475,8 +473,8 @@ function addon:ParseMap(dest)
 				end
 			end
 
-			--print(i, slot, n, dest[n], current[i], current[n], slot == dest[n])
-			if(n and i ~= n and (slot ~= dest[n])) then
+			if(n and i ~= n) then
+			--if(n and i ~= n) then
 				-- From To
 				path[#path + 1] = { slot, current[n] }
 				self:Swap(current, i, n)
@@ -545,6 +543,12 @@ function addon:Driver(path)
 	for i = 1, #path do
 		from = path[i][1]
 		to = path[i][2]
+
+		if(not from.link and to.link) then
+			local x = from
+			from = to
+			to = x
+		end
 
 		moving = coroutine.create(self.MoveItems)
 		local count = 0
