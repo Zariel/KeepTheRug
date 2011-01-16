@@ -212,7 +212,15 @@ local raritySort = function(a, b)
 end
 
 local itemMeta = {
-	__lt = raritySort,
+	__lt = function(a, b)
+		if(a.link and b.link) then
+			return raritySort(a, b)
+		elseif(b.link) then
+			return true
+		else
+			return false
+		end
+	end,
 	__eq = function(a, b)
 		for k, v in pairs(a) do
 			if(k ~= "bag" and k ~= "slot" and b[k] ~= v) then
@@ -336,52 +344,6 @@ function addon:FirstEmpty(bags)
 	end
 end
 
-function addon:DefragMap()
-	local bags = self:GetBags()
-	if(not self:FirstEmpty(bags)) then
-		return bags
-	end
-
-	local dest = copyT(bags, {})
-
-	local slot
-	local i = #bags
-
-	while(i > 1) do
-		for j = i, 1, -1 do
-			slot = dest[j]
-			i = j
-			if(not slot.empty) then
-				break
-			end
-		end
-
-		local empty = self:FirstEmpty(dest)
-		if(empty and i > empty) then
-		else
-			break
-		end
-
-		i = i - 1
-	end
-
-	return true
-end
-
-local heapSort = function(t)
-
-	return t
-end
-
-local heapify = function(t)
-	local start = #t / 2
-
-	while start >= 1 do
-		siftDown(t, start, #t)
-		start = start - 1
-	end
-end
-
 local siftDown = function(t, start, last)
 	local root = start
 
@@ -391,15 +353,15 @@ local siftDown = function(t, start, last)
 		if(t[_swap] < t[child]) then
 			_swap = child
 		end
-		if(child < last and t[_swap] < t[child + 1]) then
+		if(child < last and t[_swap] > t[child]) then
 			_swap = child + 1
 		end
 		if(_swap ~= root) then
-			local swap = coroutine.create(self.Swap)
+			local swap = coroutine.create(addon.Swap)
 			local err, ret
 
 			while(true) do
-				err, ret = coroutine.resume(swap, self, t, root, _swap)
+				err, ret = coroutine.resume(swap, addon, t, root, _swap)
 				if(not err) then
 					error(ret)
 				end
@@ -407,7 +369,7 @@ local siftDown = function(t, start, last)
 				if(ret) then
 					break
 				else
-					self:Show()
+					addon:Show()
 					coroutine.yield(false)
 				end
 			end
@@ -419,15 +381,27 @@ local siftDown = function(t, start, last)
 	end
 end
 
-function addon:Sort(bags)
+local heapify = function(t)
+	local start = #t / 2
+
+	while start >= 1 do
+		siftDown(t, start, #t)
+		start = start - 1
+	end
+end
+
+function addon:Sort()
+	local bags = self:GetBags()
+
 	heapify(bags)
-	local last = #t
+
+	local last = #bags
 	while last > 0 do
 		local swap = coroutine.create(self.Swap)
 		local err, ret
 
 		while(true) do
-			err, ret = coroutine.resume(swap, self, t, last, 1)
+			err, ret = coroutine.resume(swap, self, bags, last, 1)
 			if(not err) then
 				error(ret)
 			end
@@ -439,9 +413,12 @@ function addon:Sort(bags)
 				coroutine.yield(false)
 			end
 		end
-		siftDown(t, 1, last - 1)
+
+		siftDown(bags, 1, last - 1)
 		last = last - 1
 	end
+
+	self.running = false
 end
 
 local timer = 0
@@ -451,7 +428,6 @@ function addon:OnUpdate(elapsed)
 	-- Move check throttle
 	if(timer >= 0.2) then
 		if(self.job and coroutine.status(self.job) == "suspended") then
-			self.runningTime = self.runningTime + timer
 			local err, ret = coroutine.resume(self.job, self)
 			if(not err) then
 				error(ret)
@@ -460,6 +436,7 @@ function addon:OnUpdate(elapsed)
 			if(ret) then
 				self.job = nil
 				self:Hide()
+				self.running = false
 			end
 		else
 			self:Hide()
@@ -498,8 +475,10 @@ end
 local _G = getfenv(0)
 
 function _G.SlashCmdList.WALRUS(msg)
+	if(addon.running) then return end
 	local bank = string.match(msg, "(%S)") and true
-	addon.job = coroutine.create(addon.SortMap)
+	addon.running = true
+	addon.job = coroutine.create(addon.Sort)
 	addon:Show()
 end
 _G.SLASH_WALRUS1 = "/walrus"
