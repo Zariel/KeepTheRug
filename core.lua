@@ -421,29 +421,15 @@ end
 
 -- TODO: Optimize this
 function addon:SortMap(bags, junkEnd)
-	local dest = {}
+	local dest = copyT(bags, {})
 
 	dest.bank = bags.bank
 
 	local slot, prev
 
-	for i = 1, #bags do
-		--if(not bags[i].empty) then
-			dest[#dest + 1] = bags[i]
-		--end
-	end
 
 	if(#dest > 1) then
 		self:QSort(dest, 1, #dest)
-		--table.sort(dest)
-
-		--[[
-		for i = 1, #bags do
-			if(bags[i].empty) then
-				table.insert(dest, i, bags[i])
-			end
-		end
-		]]
 
 		if(junkEnd) then
 			for i = #dest, 1 do
@@ -490,7 +476,6 @@ function addon:ParseMap(dest)
 				end
 			end
 
-			print(slot, dest[n], slot == dest[n])
 			if(n and i ~= n and slot ~= dest[n]) then
 				--print(i, n, slot.id == n)
 				-- From To
