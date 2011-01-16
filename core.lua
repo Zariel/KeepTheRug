@@ -577,7 +577,7 @@ function addon:Driver(path)
 		coroutine.yield(false)
 	end
 
-	print("Finished in: " .. math.floor(((self.runningTime * 100) + 0.5) / 100) .. "s")
+	print("Finished in: " .. math.floor(((self.runningTime + 0.5) * 100) / 100) .. "s")
 
 	return true
 end
@@ -598,7 +598,7 @@ local _G = getfenv(0)
 function _G.SlashCmdList.WALRUS(msg)
 	local bank = string.match(msg, "(%S)") and true
 	--local defrag = addon:DefragMap(addon:GetBags(bank))
-	local sort = addon:SortMap(addon:GetBags(bank), true, true)
+	local sort = addon:SortMap(addon:GetBags(bank), false, true)
 	local path = addon:ParseMap(sort)
 
 	if(#path > 1) then
