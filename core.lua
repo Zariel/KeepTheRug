@@ -5,7 +5,10 @@
 	Mantain 2 tables, current position, target positions.
 ]]
 
-local addon = CreateFrame("Frame")
+local parent, ns = ...
+
+ns.ktr = CreateFrame("Frame")
+local addon = ns.ktr
 addon.runningTime = 0
 
 -- Some table funcs
@@ -577,7 +580,7 @@ function addon:Driver(path)
 		coroutine.yield(false)
 	end
 
-	print("Finished in: " .. math.floor(((self.runningTime * 100) + 0.5) / 100) .. "s")
+	print("Finished in: " .. math.floor((self.runningTime * 100) / 100) .. "s")
 
 	return true
 end
