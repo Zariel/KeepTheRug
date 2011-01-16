@@ -212,14 +212,17 @@ local raritySort = function(a, b)
 end
 
 local itemMeta = {
-	__lt = raritySort,
-	__eq = function(a, b)
-		for k, v in pairs(a) do
-			if(k ~= "bag" and k ~= "slot" and b[k] ~= v) then
-				return false
-			end
+	__lt = function(a, b)
+		if(a.link and b.link) then
+			return raritySort(a, b)
+		elseif(a.link) then
+			return true
+		else
+			return false
 		end
-		return true
+	end,
+	__eq = function(a, b)
+		return a.name == b.name and a.count == b.count
 	end,
 	__tostring = function(self) return tostring(self.link) end,
 }
@@ -425,20 +428,22 @@ function addon:SortMap(bags, junkEnd)
 	local slot, prev
 
 	for i = 1, #bags do
-		if(not bags[i].empty) then
+		--if(not bags[i].empty) then
 			dest[#dest + 1] = bags[i]
-		end
+		--end
 	end
 
 	if(#dest > 1) then
 		self:QSort(dest, 1, #dest)
 		--table.sort(dest)
 
+		--[[
 		for i = 1, #bags do
 			if(bags[i].empty) then
 				table.insert(dest, i, bags[i])
 			end
 		end
+		]]
 
 		if(junkEnd) then
 			for i = #dest, 1 do
@@ -472,7 +477,7 @@ function addon:ParseMap(dest)
 		slot = dest[i]
 		-- Are we in the correct place ?
 		--if(i ~= slot.id) then
-		if(slot ~= current[i]) then
+		if(slot ~= current[i] and slot.link) then
 			-- Find where slot is in the current layout
 			-- slot.id == j the first time when an item isnt moved
 			-- but when an item is moved the self:Swap() only operates on current.
@@ -485,7 +490,8 @@ function addon:ParseMap(dest)
 				end
 			end
 
-			if(n and i ~= n) then
+			print(slot, dest[n], slot == dest[n])
+			if(n and i ~= n and slot ~= dest[n]) then
 				--print(i, n, slot.id == n)
 				-- From To
 				path[#path + 1] = { slot, current[n] }
@@ -502,17 +508,14 @@ function addon:OnUpdate(elapsed)
 	timer = timer + elapsed
 
 	-- Move check throttle
-	if(timer > 0.15) then
+	if(timer > 0) then
 		if(self.driving and coroutine.status(self.driving) == "suspended") then
 			self.runningTime = self.runningTime + timer
 			local err, ret = coroutine.resume(self.driving, self, self.driverArgs)
 			if(ret) then
 				self.driving = nil
 				self.driverArg = nil
-				self:Hide()
 			end
-		else
-			self:Hide()
 		end
 
 		timer = 0
@@ -568,12 +571,10 @@ function addon:Driver(path)
 			--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
 
 			if(not ret) then
-				if(count > 25) then
+				if(count > 50) then
 					print(string.format("Error moving (%d, %d) -> (%d, %d)", from.bag, from.slot, to.bag, to.slot))
-					self:Hide()
 					return true
 				else
-					self:Show()
 					coroutine.yield(false)
 				end
 			else
@@ -581,7 +582,7 @@ function addon:Driver(path)
 			end
 		end
 
-		self:Hide()
+		coroutine.yield(false)
 	end
 
 	print("Finished in: " .. self.runningTime .. "s")
@@ -604,14 +605,13 @@ local _G = getfenv(0)
 
 function _G.SlashCmdList.WALRUS(msg)
 	local bank = string.match(msg, "(%S)") and true
-	--local map = self:ParseMap(self:DefragMap(self:GetBags()()))
-	--local map = self:ParseMap(self:DefragMap(self:SortMap(self:GetBags()())))
-	local defrag = addon:DefragMap(addon:GetBags(bank))
-	local sort = addon:SortMap(defrag)
+	--local defrag = addon:DefragMap(addon:GetBags(bank))
+	local sort = addon:SortMap(addon:GetBags(bank))
 	local path = addon:ParseMap(sort)
 
 	print(#path)
 
+	addon:Show()
 	addon:Run(path)
 end
 _G.SLASH_WALRUS1 = "/walrus"
