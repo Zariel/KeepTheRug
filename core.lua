@@ -9,7 +9,7 @@ local addon = CreateFrame("Frame")
 addon.runningTime = 0
 
 -- Some table funcs
-local newT, delT, copyT
+local newT, delT, copyT, reverseT
 do
 	delT = function(t)
 		for k, v in pairs(t) do
@@ -48,6 +48,13 @@ do
 			if(type(v) == "table") then
 				printT(v)
 			end
+		end
+	end
+
+	reverseT = function(t)
+		local len = #t
+		for i = 1, len / 2 do
+			addon:Swap(t, i, len - i + 1)
 		end
 	end
 end
@@ -265,17 +272,6 @@ function addon:Swap(bags, from, to)
 	local tmp = copyT(bags[from], {})
 	copyT(bags[to], bags[from])
 	copyT(tmp, bags[to])
-
-	bags[from].dirty = true
-	bags[to].dirty = true
-end
-
-function addon:Reverse(bags)
-	local n = #bags
-	for i = 1, #bags do
-		print(i, bags[i], n - i + 1, bags[n - i + 1])
-		--self:Swap(bags, i, n - i + 1)
-	end
 end
 
 function addon:ItemInBag(item, bag)
@@ -420,16 +416,18 @@ function addon:QSort(t, min, max)
 end
 
 -- TODO: Optimize this
-function addon:SortMap(bags, junkEnd)
+function addon:SortMap(bags, reverse, junkEnd)
 	local dest = copyT(bags, {})
-
-	dest.bank = bags.bank
 
 	local slot, prev
 
-
 	if(#dest > 1) then
 		self:QSort(dest, 1, #dest)
+
+		-- Dirty hack :E
+		if(reverse) then
+			reverseT(dest)
+		end
 
 		if(junkEnd) then
 			for i = #dest, 1 do
@@ -463,21 +461,22 @@ function addon:ParseMap(dest)
 		slot = dest[i]
 		-- Are we in the correct place ?
 		--if(i ~= slot.id) then
-		if(slot ~= current[i] and slot.link) then
+		if(slot.link ~= current[i].link) then
 			-- Find where slot is in the current layout
 			-- slot.id == j the first time when an item isnt moved
 			-- but when an item is moved the self:Swap() only operates on current.
 			local n
 			-- TODO: Optimize this
-			for j = 1, #current do
-				if(current[j] == slot) then
+			for j = #current,1,-1 do
+				-- Need to check here that the links are the same
+				if(current[j].link == slot.link) then
 					n = j
 					break
 				end
 			end
 
-			if(n and i ~= n and slot ~= dest[n]) then
-				--print(i, n, slot.id == n)
+			--print(i, slot, n, dest[n], current[i], current[n], slot == dest[n])
+			if(n and i ~= n and (slot ~= dest[n])) then
 				-- From To
 				path[#path + 1] = { slot, current[n] }
 				self:Swap(current, i, n)
@@ -550,10 +549,10 @@ function addon:Driver(path)
 		moving = coroutine.create(self.MoveItems)
 		local count = 0
 
+		--print(i, from.bag, from.slot, to.bag, to.slot)
 		while(true) do
 			err, ret = coroutine.resume(moving, self, from.bag, from.slot, to.bag, to.slot)
 			count = count + 1
-			--print(i, err, ret, from.bag, from.slot, to.bag, to.slot)
 
 			if(not ret) then
 				if(count > 50) then
@@ -599,4 +598,5 @@ function _G.SlashCmdList.WALRUS(msg)
 	addon:Show()
 	addon:Run(path)
 end
+
 _G.SLASH_WALRUS1 = "/walrus"
