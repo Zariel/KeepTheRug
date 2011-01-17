@@ -474,14 +474,12 @@ function addon:ParseMap(dest)
 	local path = {}
 	local dirty = {}
 
-	local i = 1
-	local slot = dest[i]
+	local slot
 
-	while(slot) do
+	for i = 1, #dest do
 		slot = dest[i]
 		-- Are we in the correct place ?
-		--if(i ~= slot.id) then
-		if(slot ~= current[i] and slot.link) then
+		if(slot.link and slot ~= current[i]) then
 			-- Find where slot is in the current layout
 			-- slot.id == j the first time when an item isnt moved
 			-- but when an item is moved the self:Swap() only operates on current.
@@ -489,21 +487,19 @@ function addon:ParseMap(dest)
 			-- TODO: Optimize this
 			for j = 1, #current do
 				-- Need to check here that the links are the same
-				if(current[j].link == slot.link and j ~= i) then
+				if(current[j].link == slot.link) then
 					n = j
 					break
 				end
 			end
 
+			print(string.format("%d->%d -- %s (%d:%d) -> (%d:%d), %s", i, n, slot.link, slot.bag, slot.slot, current[n].bag, current[n].slot, current[n].link))
 			if(n and i ~= n) then
-				path[#path + 1] = { slot, current[n] }
+				path[#path + 1] = { current[n], slot }
 
 				self:Swap(current, i, n)
-				-- i is now in position, dont move it again
-				dirty[i] = true
 			end
 		end
-		i = i + 1
 	end
 
 	return path
