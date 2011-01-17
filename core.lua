@@ -165,9 +165,17 @@ for k, v in pairs(itemSubWeight) do
 	setmetatable(itemSubWeight[k], nullMeta)
 end
 
+local linkSort = function(a, b)
+	if(a.link == b.link) then
+		return false
+	else
+		return a.link > b.link
+	end
+end
+
 local stackSort = function(a, b)
 	if(a.count == b.count) then
-		return false
+		return linkSort(a, b)
 	else
 		return a.count > b.count
 	end
@@ -418,6 +426,14 @@ function addon:QSort(t, min, max)
 	end
 end
 
+function addon:LastEmpty(dest)
+	for i = #dest, 1, -1 do
+		if(not dest[i].link) then
+			return i
+		end
+	end
+end
+
 -- TODO: Optimize this
 function addon:SortMap(bags, reverse, junkEnd)
 	local dest = copyT(bags, {})
@@ -428,8 +444,8 @@ function addon:SortMap(bags, reverse, junkEnd)
 		self:QSort(dest, 1, #dest)
 
 		if(junkEnd) then
-			for i = #dest, 1 do
-				if(dest[i].rarity == 1) then
+			for i = #dest, 1, -1 do
+				if(dest[i].rarity == 0) then
 					local last = self:LastEmpty(dest)
 					if(last) then
 						self:Swap(dest, i, last)
@@ -455,11 +471,13 @@ end
 function addon:ParseMap(dest)
 	local current = self:GetBags(dest.bank)
 
-	local slot
 	local path = {}
 	local dirty = {}
 
-	for i = 1, #dest do
+	local i = 1
+	local slot = dest[i]
+
+	while(slot) do
 		slot = dest[i]
 		-- Are we in the correct place ?
 		--if(i ~= slot.id) then
@@ -469,15 +487,15 @@ function addon:ParseMap(dest)
 			-- but when an item is moved the self:Swap() only operates on current.
 			local n
 			-- TODO: Optimize this
-			for j = #current,1,-1 do
+			for j = 1, #current do
 				-- Need to check here that the links are the same
-				if(current[j].link == slot.link) then
+				if(current[j].link == slot.link and j ~= i) then
 					n = j
 					break
 				end
 			end
 
-			if(n and i ~= n and not dirty[n]) then
+			if(n and i ~= n) then
 				path[#path + 1] = { slot, current[n] }
 
 				self:Swap(current, i, n)
@@ -485,6 +503,7 @@ function addon:ParseMap(dest)
 				dirty[i] = true
 			end
 		end
+		i = i + 1
 	end
 
 	return path
@@ -549,14 +568,6 @@ function addon:Driver(path)
 		from = path[i][1]
 		to = path[i][2]
 
-		--[[
-		if(not from.link and to.link) then
-			local x = from
-			from = to
-			to = x
-		end
-		]]
-
 		moving = coroutine.create(self.MoveItems)
 		local count = 0
 
@@ -601,17 +612,13 @@ local _G = getfenv(0)
 function _G.SlashCmdList.WALRUS(msg)
 	local bank = string.match(msg, "(%S)") and true
 	--local defrag = addon:DefragMap(addon:GetBags(bank))
-	local sort = addon:SortMap(addon:GetBags(bank), true, true)
+	local sort = addon:SortMap(addon:GetBags(bank))
 	local path = addon:ParseMap(sort)
 
-	if(#path > 1) then
-		print(#path)
+	print(#path)
 
-		addon:Show()
-		addon:Run(path)
-	else
-		print("Inventory already clean.")
-	end
+	addon:Show()
+	addon:Run(path)
 end
 
 _G.SLASH_WALRUS1 = "/walrus"
