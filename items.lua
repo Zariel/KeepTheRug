@@ -37,7 +37,7 @@ local new_item = function(bag, slot)
 	return t
 end
 
-local new_slot = function(bag, slot)
+function addon:NewSlot(bag, slot)
 	local t = setmetatable({}, slot_meta)
 	t.item = new_item(bag, slot)
 	t.bag = bag

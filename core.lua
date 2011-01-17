@@ -7,7 +7,6 @@
 
 local parent, ns = ...
 
-ns.ktr = CreateFrame("Frame")
 local addon = ns.ktr
 addon.runningTime = 0
 
@@ -88,7 +87,7 @@ function addon:GetBags(bank)
 
 	if(bank) then
 		for slot = 1, GetContainerNumSlots(-1) do
-			local item = newItem(-1, slot)
+			local item = self:NewSlot(-1, slot)
 			item.id = i
 			bags[i] = item
 
@@ -98,8 +97,7 @@ function addon:GetBags(bank)
 
 	for bag = min, max do
 		for slot = 1, GetContainerNumSlots(bag) do
-			local item = newItem(bag, slot)
-			item.id = i
+			local item = self:NewSlot(bag, slot)
 			bags[i] = item
 
 			i = i + 1
@@ -113,7 +111,7 @@ end
 
 function addon:FirstEmpty(bags)
 	for i = 1, #bags do
-		if(bags[i].empty) then
+		if(not bags[i].item) then
 			return i
 		end
 	end

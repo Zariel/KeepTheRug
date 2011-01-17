@@ -2,7 +2,6 @@ local parent, ns = ...
 
 local addon = ns.ktr
 
-
 local nullMeta = {
 	__index = function()
 		return 0

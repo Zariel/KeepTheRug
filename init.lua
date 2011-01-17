@@ -1,3 +1,3 @@
 local parent, ns = ...
 
-ns.addon = CreateFrame("Frame")
+ns.ktr = CreateFrame("Frame")
