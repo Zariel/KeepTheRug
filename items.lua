@@ -1,22 +1,29 @@
 local parent, ns = ...
-local addon = ns.addon
+local addon = ns.ktr
 
 local slot_meta = {
-	__lt = addon.__lt,
-	__eq = function(a, b)
+	__lt = function(a, b)
 		if(a.item and b.item) then
-			return a.item.link == b.item.link
+			return a.item < b.item
+		elseif(a.item) then
+			return true
+		else
+			return false
 		end
-
-		return false
 	end,
-	__tostring = function(self) return tostring(self.item and self.item.link) end,
+	__eq = function(a, b)
+		return a.bag == b.bag and a.slot == b.slot
+	end,
 }
 
 local new_item = function(bag, slot)
 	local link = GetContainerItemLink(bag, slot)
-
 	if(link) then
+		local t = setmetatable({}, {
+			__lt = addon.__lt,
+			__tostring = function(self) return tostring(self.link) end
+		})
+
 		local icon, count = GetContainerItemInfo(bag, slot)
 		local name, _, rarity, iLevel, minLevel, itemType, subType, maxCount = GetItemInfo(link)
 
@@ -32,9 +39,8 @@ local new_item = function(bag, slot)
 		t.full = count == maxCount
 		t.family = GetItemFamily(link)
 		t.icon = icon
+		return t
 	end
-
-	return t
 end
 
 function addon:NewSlot(bag, slot)

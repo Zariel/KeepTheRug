@@ -1,5 +1,5 @@
 local parent, ns = ...
-local addon = ns.addon
+local addon = ns.ktr
 
 -- For a given map of what the bag should look like, create a path that will move the items so that it
 -- matches the given map.
@@ -9,12 +9,26 @@ function addon:ParseMap(dest)
 
 	local path = {}
 
-	local slot
-
 	for i, slot in ipairs(dest) do
 		local target = current[i]
-		print(slot.item, target.item)
-		path[#path + 1] = { slot.bag, slot.slot, target.bag, target.slot }
+		if(slot ~= target) then
+			path[#path + 1] = { slot.bag, slot.slot, target.bag, target.slot }
+
+			local id
+			print(target.item)
+			for j, s in pairs(dest) do
+				if(s.item == target.item) then
+					id = j
+					break
+				end
+			end
+
+			print(id)
+			local bag, slot = slot.bag, slot.slot
+			dest[id].bag = bag
+			dest[id].slot = slot
+			dest[id].id = id
+		end
 	end
 
 	return path

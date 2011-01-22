@@ -63,7 +63,6 @@ end
 
 
 -- TODO: Add item info caching
-
 function addon:Print(...)
 	return print("|cffKtR: ")
 end
@@ -98,6 +97,7 @@ function addon:GetBags(bank)
 	for bag = min, max do
 		for slot = 1, GetContainerNumSlots(bag) do
 			local item = self:NewSlot(bag, slot)
+			item.id = i
 			bags[i] = item
 
 			i = i + 1
