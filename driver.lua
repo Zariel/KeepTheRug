@@ -14,20 +14,10 @@ function addon:ParseMap(dest)
 		if(slot ~= target) then
 			path[#path + 1] = { slot.bag, slot.slot, target.bag, target.slot }
 
-			local id
-			print(target.item)
-			for j, s in pairs(dest) do
-				if(s.item == target.item) then
-					id = j
-					break
-				end
-			end
-
-			print(id)
-			local bag, slot = slot.bag, slot.slot
-			dest[id].bag = bag
-			dest[id].slot = slot
-			dest[id].id = id
+			-- Dont need to update what was moved to its corrent position
+			-- because it is now stationary.
+			local nBag, nSlot, nId = slot.bag, slot.slot, slot.id
+			slot.bag = target.bag
 		end
 	end
 
